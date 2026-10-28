@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DA RUA — Camisas de Time</title>
+  <meta name="description" content="DA RUA: camisas de time nacionais, europeias, seleções e retrô. Do P ao XGG, com personalização e entrega para todo o Brasil.">
+  <link rel="icon" href="logodarua.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topo">
+    <div class="wrap topo-in">
+      <a href="index.html" class="logo"><img src="logodarua.png" alt="DA RUA"></a>
+      <div class="busca"><input id="busca" type="search" placeholder="Buscar time, seleção ou temporada..." aria-label="Buscar"></div>
+      <button class="btn-carrinho" id="abrirCarrinho" aria-label="Abrir carrinho">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+        <span id="qtdCarrinho">0</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <h1>Manto é<br><span>coisa séria.</span></h1>
+      <p>Camisas de time nacionais, europeias, seleções e retrô. Do P ao XGG, com personalização e entrega para todo o Brasil.</p>
+    </div>
+  </section>
+  <div class="faixa" id="faixa"></div>
+
+  <main class="wrap">
+    <div class="filtros">
+      <div class="chips" id="filtroCategoria"></div>
+      <div class="filtros-dir">
+        <select id="filtroTamanho" aria-label="Filtrar por tamanho"></select>
+        <select id="ordenar" aria-label="Ordenar">
+          <option value="destaque">Destaques</option>
+          <option value="menor">Menor preço</option>
+          <option value="maior">Maior preço</option>
+          <option value="novos">Novidades</option>
+        </select>
+      </div>
+    </div>
+    <div class="grade" id="grade"></div>
+    <p class="vazio" id="vazio" hidden>Nenhuma camisa encontrada com esses filtros.</p>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <img src="logodarua.png" alt="DA RUA">
+      <span>© <span id="ano"></span> DA RUA — Camisas de time</span>
+      <span>Pedidos pelo WhatsApp</span>
+    </div>
+  </footer>
+
+  <!-- Detalhe do produto -->
+  <div class="overlay" id="modalProduto" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="fechar" data-fechar aria-label="Fechar">×</button>
+      <div class="modal-corpo" id="produtoCorpo"></div>
+    </div>
+  </div>
+
+  <!-- Carrinho -->
+  <div class="gaveta-fundo" id="carrinhoFundo" hidden></div>
+  <aside class="gaveta" id="carrinho" hidden aria-label="Carrinho">
+    <div class="gaveta-topo">
+      <h3>Seu carrinho</h3>
+      <button class="fechar" id="fecharCarrinho" aria-label="Fechar">×</button>
+    </div>
+    <div class="gaveta-corpo" id="carrinhoCorpo"></div>
+    <div class="gaveta-rodape" id="carrinhoRodape"></div>
+  </aside>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/loja.js"></script>
+</body>
+</html>
