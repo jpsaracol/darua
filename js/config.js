@@ -4,11 +4,12 @@ const DARUA_CONFIG = {
   planilha: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSyzFm4FkoiCzr4cHJ36NdZO2pfx0FkbHZd5RosYcykaCa-acZ8BAh7fAH7U38vt9i8VQiTr_vG3ELP/pub?gid=602134471&single=true&output=csv',
 
   // Link do App da Web do Google Apps Script (recebe e salva os pedidos na aba "pedidos")
-  api: '',
+  api: 'https://script.google.com/macros/s/AKfycbwnIFWbSRsY4L91uTGGjEJp_KyaB-T1Hp6Z152_9lXl3-JskbMfOuWNpKaQJHtKwyFRQA/exec',
 
   // ---------- pagamento ----------
+  // TODO(human): preencha os 3 campos do Pix abaixo com os seus dados
   pix: {
-    chave: '',                 // CPF/CNPJ só números, e-mail, telefone no formato +5554999999999 ou chave aleatória
+    chave: '',               // CPF/CNPJ só números, e-mail, telefone no formato +5554999999999 ou chave aleatória
     nome: 'DA RUA',            // nome de quem recebe (até 25 letras, sem acento)
     cidade: 'VERANOPOLIS'      // cidade de quem recebe (até 15 letras, sem acento)
   },
