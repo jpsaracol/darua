@@ -1,0 +1,201 @@
+/* DA RUA — API de pedidos (Google Apps Script)
+   Cole este código em: Planilha → Extensões → Apps Script, e implante como "App da Web".
+   Ele recebe os pedidos do site, salva na aba "pedidos", dá baixa no estoque da aba "camisas"
+   e atende a página do vendedor. */
+
+// ⚠️ Troque a senha AQUI no editor do Google (não no GitHub). É a senha da página do vendedor.
+const SENHA = 'TROQUE_ESTA_SENHA';
+
+const PERSONALIZACAO_PRECO = 30;   // igual ao js/config.js do site
+const TAMANHOS = ['P', 'M', 'G', 'GG', 'XGG'];
+const STATUS = ['Aguardando Pix', 'Novo', 'Pago', 'Enviado', 'Entregue', 'Cancelado'];
+const ABA_CAMISAS = 'camisas';
+const ABA_PEDIDOS = 'pedidos';
+const CAB_PEDIDOS = ['numero', 'data', 'status', 'pagamento', 'cliente', 'telefone', 'email', 'itens',
+  'subtotal', 'frete_tipo', 'frete_valor', 'total', 'cep', 'endereco', 'cidade', 'uf', 'itens_json'];
+
+// ---------------- entrada ----------------
+function doGet() {
+  return json({ ok: true, msg: 'API DA RUA funcionando' });
+}
+
+function doPost(e) {
+  let resp;
+  try {
+    const req = JSON.parse(e.postData.contents);
+    const rotas = { pedido: criarPedido, listar: listarPedidos, status: mudarStatus };
+    if (!rotas[req.acao]) throw new Error('Ação inválida.');
+    resp = rotas[req.acao](req);
+  } catch (err) {
+    resp = { ok: false, erro: String(err.message || err) };
+  }
+  return json(resp);
+}
+
+function json(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ---------------- utilidades ----------------
+function num(v) {
+  if (typeof v === 'number') return v;
+  let s = String(v || '').replace(/[R$\s]/g, '');
+  if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+  return Number(s) || 0;
+}
+
+function texto(v, max) {
+  return String(v == null ? '' : v).trim().slice(0, max || 200);
+}
+
+function conferirSenha(req) {
+  if (!req.senha || req.senha !== SENHA) throw new Error('Senha incorreta.');
+}
+
+function lerCamisas() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(ABA_CAMISAS);
+  if (!sh) throw new Error('Aba "camisas" não encontrada.');
+  const v = sh.getDataRange().getValues();
+  const col = {};
+  v[0].forEach(function (c, i) { col[String(c).trim()] = i; });
+  const linhaDe = {};
+  for (let i = 1; i < v.length; i++) linhaDe[String(v[i][col.id]).trim()] = i;
+  return { sh: sh, v: v, col: col, linhaDe: linhaDe };
+}
+
+function abaPedidos() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(ABA_PEDIDOS);
+  if (!sh) {
+    sh = ss.insertSheet(ABA_PEDIDOS);
+    sh.appendRow(CAB_PEDIDOS);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, CAB_PEDIDOS.length).setFontWeight('bold').setBackground('#0b0b0b').setFontColor('#ffffff');
+  }
+  return sh;
+}
+
+// soma (sinal +1) ou desconta (sinal -1) o estoque dos itens de um pedido
+function movimentarEstoque(itens, sinal) {
+  const c = lerCamisas();
+  itens.forEach(function (it) {
+    const i = c.linhaDe[it.id];
+    if (i === undefined || c.col[it.t] === undefined) return;
+    const cel = c.sh.getRange(i + 1, c.col[it.t] + 1);
+    cel.setValue(Math.max(0, num(cel.getValue()) + sinal * it.qtd));
+  });
+}
+
+// ---------------- pedido novo (vem do site) ----------------
+function criarPedido(req) {
+  const cli = req.cliente || {};
+  const nome = texto(cli.nome, 80);
+  const telefone = texto(cli.telefone, 20);
+  if (!nome) throw new Error('Informe seu nome.');
+  if (String(telefone).replace(/\D/g, '').length < 10) throw new Error('Informe um telefone com DDD.');
+  if (['pix', 'entrega'].indexOf(req.pagamento) < 0) throw new Error('Forma de pagamento inválida.');
+  if (!Array.isArray(req.itens) || !req.itens.length) throw new Error('Carrinho vazio.');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);   // dois pedidos ao mesmo tempo não vendem a mesma camisa
+  try {
+    const c = lerCamisas();
+    const precisa = {};
+    const itens = [];
+    let subtotal = 0;
+
+    req.itens.forEach(function (it) {
+      const qtd = parseInt(it.qtd, 10);
+      if (TAMANHOS.indexOf(it.t) < 0 || !(qtd > 0 && qtd <= 20)) throw new Error('Item inválido no carrinho.');
+      const i = c.linhaDe[String(it.id)];
+      if (i === undefined) throw new Error('Uma camisa do carrinho não existe mais. Atualize a página.');
+      const row = c.v[i];
+      const nomeCamisa = String(row[c.col.nome]);
+      if (String(row[c.col.ativo]).trim().toUpperCase() === 'NAO') throw new Error(nomeCamisa + ' não está mais disponível.');
+
+      const key = it.id + '|' + it.t;
+      precisa[key] = (precisa[key] || 0) + qtd;
+      if (num(row[c.col[it.t]]) < precisa[key]) {
+        throw new Error('Estoque insuficiente: ' + nomeCamisa + ' tamanho ' + it.t + '. Atualize a página e ajuste o carrinho.');
+      }
+
+      // o preço é recalculado pela planilha, não confiamos no valor vindo do navegador
+      const preco = num(row[c.col.preco]);
+      const promo = num(row[c.col.preco_promo]);
+      const perso = it.perso ? { nome: texto(it.perso.nome, 12), num: texto(it.perso.num, 2) } : null;
+      const unit = (promo > 0 && promo < preco ? promo : preco) + (perso ? PERSONALIZACAO_PRECO : 0);
+      subtotal += unit * qtd;
+      itens.push({ id: String(it.id), nome: nomeCamisa, t: it.t, qtd: qtd, unit: unit, perso: perso });
+    });
+
+    const f = req.frete || {};
+    const freteValor = Math.max(0, num(f.valor));
+    subtotal = Math.round(subtotal * 100) / 100;
+    const total = Math.round((subtotal + freteValor) * 100) / 100;
+
+    movimentarEstoque(itens, -1);
+
+    const sh = abaPedidos();
+    const ultimo = sh.getLastRow() > 1 ? num(sh.getRange(sh.getLastRow(), 1).getValue()) : 1000;
+    const numero = ultimo + 1;
+    const resumo = itens.map(function (i) {
+      return i.qtd + 'x ' + i.nome + ' (' + i.t + ')' + (i.perso ? ' [' + [i.perso.nome, i.perso.num].join(' ').trim() + ']' : '');
+    }).join('; ');
+
+    sh.appendRow([
+      numero, new Date(), req.pagamento === 'pix' ? 'Aguardando Pix' : 'Novo',
+      req.pagamento === 'pix' ? 'Pix' : 'Na entrega',
+      nome, "'" + telefone, texto(cli.email, 80), resumo,
+      subtotal, texto(f.tipo, 60), freteValor, total,
+      "'" + texto(f.cep, 9), texto(f.endereco, 150), texto(f.cidade, 60), texto(f.uf, 2),
+      JSON.stringify(itens)
+    ]);
+
+    return { ok: true, numero: numero, total: total };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ---------------- página do vendedor ----------------
+function listarPedidos(req) {
+  conferirSenha(req);
+  const sh = abaPedidos();
+  const v = sh.getDataRange().getValues();
+  const cab = v[0];
+  const pedidos = v.slice(1).map(function (row) {
+    const o = {};
+    cab.forEach(function (c, i) { o[c] = row[i]; });
+    try { o.itens_json = JSON.parse(o.itens_json); } catch (e) { o.itens_json = []; }
+    o.telefone = String(o.telefone);
+    o.cep = String(o.cep);
+    return o;
+  }).reverse();
+  return { ok: true, pedidos: pedidos };
+}
+
+function mudarStatus(req) {
+  conferirSenha(req);
+  if (STATUS.indexOf(req.status) < 0) throw new Error('Status inválido.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = abaPedidos();
+    const v = sh.getDataRange().getValues();
+    const col = {};
+    v[0].forEach(function (c, i) { col[c] = i; });
+    for (let i = 1; i < v.length; i++) {
+      if (num(v[i][col.numero]) !== num(req.numero)) continue;
+      const antes = v[i][col.status];
+      const itens = JSON.parse(v[i][col.itens_json] || '[]');
+      // cancelar devolve as camisas ao estoque; tirar do cancelado desconta de novo
+      if (req.status === 'Cancelado' && antes !== 'Cancelado') movimentarEstoque(itens, +1);
+      if (antes === 'Cancelado' && req.status !== 'Cancelado') movimentarEstoque(itens, -1);
+      sh.getRange(i + 1, col.status + 1).setValue(req.status);
+      return { ok: true };
+    }
+    throw new Error('Pedido não encontrado.');
+  } finally {
+    lock.releaseLock();
+  }
+}

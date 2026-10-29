@@ -3,7 +3,18 @@ const DARUA_CONFIG = {
   // Link da aba "camisas" publicada como CSV (Arquivo → Compartilhar → Publicar na Web)
   planilha: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSyzFm4FkoiCzr4cHJ36NdZO2pfx0FkbHZd5RosYcykaCa-acZ8BAh7fAH7U38vt9i8VQiTr_vG3ELP/pub?gid=602134471&single=true&output=csv',
 
-  // WhatsApp que recebe os pedidos: 55 + DDD + número, só dígitos. Ex: '5554999999999'
+  // Link do App da Web do Google Apps Script (recebe e salva os pedidos na aba "pedidos")
+  api: '',
+
+  // ---------- pagamento ----------
+  pix: {
+    chave: '',                 // CPF/CNPJ só números, e-mail, telefone no formato +5554999999999 ou chave aleatória
+    nome: 'DA RUA',            // nome de quem recebe (até 25 letras, sem acento)
+    cidade: 'VERANOPOLIS'      // cidade de quem recebe (até 15 letras, sem acento)
+  },
+  pagamentoNaEntrega: true,    // vale só para retirada e entrega na mesma cidade
+
+  // WhatsApp de contato (botão "Fale conosco"): 55 + DDD + número, só dígitos
   whatsapp: '5553981103937',
 
   // Personalização com nome e número

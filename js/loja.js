@@ -1,4 +1,4 @@
-/* DA RUA — vitrine, carrinho, frete e finalização pelo WhatsApp */
+/* DA RUA — vitrine, carrinho, frete, pagamento (Pix ou na entrega) e envio do pedido */
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
   const { TAMANHOS, CATEGORIAS, brl, esc } = DR;
@@ -8,7 +8,9 @@
   let endereco = null;   // resposta do ViaCEP
   let freteId = null;
   let pedidoFeito = null;
-  let cliNome = '', cliRua = '';   // mantém o que o cliente digitou entre redesenhos
+  let cliNome = '', cliTel = '', cliRua = '';   // mantém o que o cliente digitou entre redesenhos
+  let pagamento = 'pix';
+  let enviando = false;
 
   let catalogo = [];   // vem da planilha do Google
   const db = () => ({ produtos: catalogo, config: DR.config });
@@ -182,7 +184,6 @@
   }
 
   function abrirCarrinho() {
-    pedidoFeito = null;
     renderCarrinho();
     $('#carrinho').hidden = false;
     $('#carrinhoFundo').hidden = false;
@@ -194,20 +195,52 @@
     document.body.style.overflow = '';
   }
 
+  function pagamentoNaEntregaPermitido(frete) {
+    return DR.config.pagamentoNaEntrega && !!frete && (frete.id === 'retirada' || frete.local);
+  }
+
+  function telaSucesso(corpo, rodape) {
+    const p = pedidoFeito;
+    if (p.pagamento === 'pix') {
+      const codigo = DR.pixPayload(p.total, 'DARUA' + p.numero);
+      let qr = '';
+      if (window.qrcode) {
+        const q = qrcode(0, 'M');
+        q.addData(codigo);
+        q.make();
+        qr = q.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
+      }
+      corpo.innerHTML = `<div class="sucesso">
+        <div class="ok">✓</div>
+        <h4>Pedido #${p.numero} recebido!</h4>
+        <p>Pague <b>${brl(p.total)}</b> com Pix para confirmar. Escaneie o QR Code ou copie o código:</p>
+        <div class="pix-qr">${qr}</div>
+        <textarea class="pix-codigo" id="pixCodigo" readonly rows="4">${esc(codigo)}</textarea>
+        <button class="btn primario largo" id="copiarPix">Copiar código Pix</button>
+        <p class="cep-info">Recebedor: ${esc(DR.config.pix.nome)}. Assim que o pagamento for confirmado, separamos seu pedido e entramos em contato pelo telefone informado.</p>
+      </div>`;
+      $('#copiarPix').onclick = async () => {
+        try { await navigator.clipboard.writeText(codigo); }
+        catch (e) { $('#pixCodigo').select(); document.execCommand('copy'); }
+        toast('Código Pix copiado!');
+      };
+    } else {
+      corpo.innerHTML = `<div class="sucesso">
+        <div class="ok">✓</div>
+        <h4>Pedido #${p.numero} recebido!</h4>
+        <p>Total de <b>${brl(p.total)}</b> a pagar na ${p.retirada ? 'retirada' : 'entrega'} (dinheiro, Pix ou cartão).
+        Vamos entrar em contato pelo telefone informado para combinar. Obrigado por comprar na DA RUA!</p>
+      </div>`;
+    }
+    rodape.innerHTML = `<button class="btn largo" id="continuar">Continuar comprando</button>`;
+    $('#continuar').onclick = () => { pedidoFeito = null; fecharCarrinho(); };
+  }
+
   function renderCarrinho() {
     const corpo = $('#carrinhoCorpo'), rodape = $('#carrinhoRodape');
     const cfg = db().config;
 
-    if (pedidoFeito) {
-      corpo.innerHTML = `<div class="sucesso">
-        <div class="ok">✓</div>
-        <h4>Pedido #${pedidoFeito.numero} enviado!</h4>
-        <p>Envie a mensagem que abriu no WhatsApp para confirmar o pedido e combinar o pagamento. Obrigado por comprar na DA RUA!</p>
-      </div>`;
-      rodape.innerHTML = `<button class="btn primario largo" id="continuar">Continuar comprando</button>`;
-      $('#continuar').onclick = fecharCarrinho;
-      return;
-    }
+    if (pedidoFeito) { telaSucesso(corpo, rodape); return; }
 
     const L = linhas();
     DR.saveCart(carrinho);
@@ -222,10 +255,12 @@
 
     const subtotal = L.reduce((s, l) => s + l.total, 0);
     const qtdItens = L.reduce((s, l) => s + l.qtd, 0);
-    const ops = DR.opcoesFrete(endereco, subtotal, qtdItens, cfg);
+    const ops = DR.opcoesFrete(endereco, subtotal, qtdItens);
     if (!ops.some(o => o.id === freteId)) freteId = ops[0]?.id || null;
     const frete = ops.find(o => o.id === freteId);
     const falta = cfg.freteGratisAcima - subtotal;
+    const podeNaEntrega = pagamentoNaEntregaPermitido(frete);
+    if (!podeNaEntrega) pagamento = 'pix';
 
     corpo.innerHTML = `
       ${L.map(l => `
@@ -264,14 +299,29 @@
 
       <div class="bloco">
         <h4>Seus dados</h4>
-        <input type="text" id="cliNome" placeholder="Seu nome completo" autocomplete="name" value="${esc(cliNome)}">
+        <input type="text" id="cliNome" placeholder="Nome completo" autocomplete="name" value="${esc(cliNome)}">
+        <input type="tel" id="cliTel" placeholder="WhatsApp com DDD" autocomplete="tel" inputmode="tel" value="${esc(cliTel)}">
+      </div>
+
+      <div class="bloco">
+        <h4>Pagamento</h4>
+        <label class="opcao-frete">
+          <input type="radio" name="pagamento" value="pix" ${pagamento === 'pix' ? 'checked' : ''}>
+          <span>Pix<small>QR Code e código copia e cola na hora</small></span>
+        </label>
+        ${podeNaEntrega ? `
+          <label class="opcao-frete">
+            <input type="radio" name="pagamento" value="entrega" ${pagamento === 'entrega' ? 'checked' : ''}>
+            <span>Pagar na ${frete.id === 'retirada' ? 'retirada' : 'entrega'}<small>Dinheiro, Pix ou cartão</small></span>
+          </label>`
+        : cfg.pagamentoNaEntrega ? '<p class="cep-info">Pagamento na entrega disponível só para retirada e entregas na nossa cidade.</p>' : ''}
       </div>`;
 
     rodape.innerHTML = `
       <div class="linha-total"><span>Subtotal</span><span>${brl(subtotal)}</span></div>
       <div class="linha-total"><span>Frete</span><span>${frete ? (frete.valor === 0 ? 'Grátis' : brl(frete.valor)) : 'Informe o CEP'}</span></div>
       <div class="linha-total grande"><span>Total</span><span>${brl(subtotal + (frete?.valor || 0))}</span></div>
-      <button class="btn verde largo" id="finalizar">Finalizar pedido pelo WhatsApp</button>`;
+      <button class="btn verde largo" id="finalizar" ${enviando ? 'disabled' : ''}>${enviando ? 'Enviando pedido...' : 'Finalizar pedido'}</button>`;
 
     // eventos do carrinho
     corpo.querySelectorAll('[data-mais]').forEach(b => b.onclick = () => alterarQtd(b.dataset.mais, 1));
@@ -281,6 +331,7 @@
       renderCarrinho();
     });
     corpo.querySelectorAll('input[name=frete]').forEach(r => r.onchange = () => { freteId = r.value; renderCarrinho(); });
+    corpo.querySelectorAll('input[name=pagamento]').forEach(r => r.onchange = () => { pagamento = r.value; });
 
     const cep = $('#cep');
     cep.oninput = () => {
@@ -290,6 +341,7 @@
     cep.onkeydown = e => { if (e.key === 'Enter') calcularFrete(); };
     $('#calcFrete').onclick = calcularFrete;
     $('#cliNome').oninput = e => { cliNome = e.target.value; };
+    $('#cliTel').oninput = e => { cliTel = e.target.value; };
     const rua = $('#cliEndereco');
     if (rua) rua.oninput = e => { cliRua = e.target.value; };
     $('#finalizar').onclick = finalizar;
@@ -324,59 +376,51 @@
     }
   }
 
-  function finalizar() {
+  async function finalizar() {
     const L = linhas();
-    if (!L.length) return;
+    if (!L.length || enviando) return;
     const nome = cliNome.trim();
+    const tel = cliTel.trim();
     const rua = cliRua.trim();
 
-    const d = db();                 // leitura fresca: o estoque pode ter mudado
-    const cfg = d.config;
     const subtotal = L.reduce((s, l) => s + l.total, 0);
     const qtdItens = L.reduce((s, l) => s + l.qtd, 0);
-    const frete = DR.opcoesFrete(endereco, subtotal, qtdItens, cfg).find(o => o.id === freteId);
+    const frete = DR.opcoesFrete(endereco, subtotal, qtdItens).find(o => o.id === freteId);
 
     if (!frete) { toast('Informe seu CEP para calcular o frete.'); $('#cep').focus(); return; }
     if (frete.id === 'entrega' && !/\d/.test(rua)) { toast('Informe rua e número para a entrega.'); $('#cliEndereco').focus(); return; }
     if (!nome) { toast('Informe seu nome.'); $('#cliNome').focus(); return; }
-    if (!cfg.whatsapp) { toast('A loja ainda não configurou o WhatsApp de pedidos.'); return; }
+    if (tel.replace(/\D/g, '').length < 10) { toast('Informe seu WhatsApp com DDD.'); $('#cliTel').focus(); return; }
+    if (pagamento === 'pix' && !DR.config.pix.chave) { toast('A loja ainda não configurou a chave Pix.'); return; }
+    if (pagamento === 'entrega' && !pagamentoNaEntregaPermitido(frete)) pagamento = 'pix';
 
-    // confere o estoque da planilha (a baixa é feita pelo vendedor ao confirmar a venda)
-    for (const l of L) {
-      const p = d.produtos.find(x => x.id === l.id);
-      const pedidoMesmoTam = L.filter(x => x.id === l.id && x.t === l.t).reduce((s, x) => s + x.qtd, 0);
-      if (!p || (p.estoque[l.t] || 0) < pedidoMesmoTam) {
-        toast(`Estoque de ${l.p.nome} (${l.t}) mudou. Ajuste o carrinho.`);
-        renderCarrinho();
-        return;
-      }
+    enviando = true;
+    renderCarrinho();
+    try {
+      // a API confere o estoque na planilha, recalcula os preços e dá baixa
+      const r = await DR.api('pedido', {
+        cliente: { nome, telefone: tel },
+        pagamento,
+        itens: L.map(l => ({ id: l.id, t: l.t, qtd: l.qtd, perso: l.perso })),
+        frete: {
+          tipo: frete.titulo, valor: frete.valor,
+          cep: endereco?.cep || '', cidade: endereco?.localidade || '', uf: endereco?.uf || '',
+          endereco: frete.id === 'entrega' ? rua : ''
+        }
+      });
+      pedidoFeito = { numero: r.numero, total: r.total, pagamento, retirada: frete.id === 'retirada' };
+      carrinho = [];
+      DR.saveCart(carrinho);
+      endereco = null;
+      freteId = null;
+      cliRua = '';
+      atualizarCatalogo();
+    } catch (e) {
+      toast(e.message || 'Não foi possível enviar o pedido. Tente de novo.');
     }
-
-    const pedido = { numero: Date.now().toString(36).slice(-6).toUpperCase(), total: subtotal + frete.valor };
-    const msg = [
-      `*Pedido DA RUA #${pedido.numero}*`,
-      `Cliente: ${nome}`,
-      '',
-      ...L.map(l => `• ${l.qtd}x ${l.p.nome} — Tam. ${l.t}` +
-        (l.perso ? ` (Personalização: ${[l.perso.nome, l.perso.num].filter(Boolean).join(' ')})` : '') +
-        ` — ${brl(l.total)}`),
-      '',
-      `Subtotal: ${brl(subtotal)}`,
-      `Frete: ${frete.titulo} (${frete.prazo}) — ${frete.valor === 0 ? 'Grátis' : brl(frete.valor)}`,
-      frete.id === 'entrega' ? `Endereço: ${rua} — ${endereco.localidade}/${endereco.uf}, CEP ${endereco.cep}` : null,
-      `*Total: ${brl(pedido.total)}*`
-    ].filter(x => x !== null).join('\n');
-    window.open(`https://wa.me/${cfg.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
-
-    carrinho = [];
-    DR.saveCart(carrinho);
-    endereco = null;
-    freteId = null;
-    cliRua = '';
-    pedidoFeito = pedido;
+    enviando = false;
     atualizarContador();
     renderCarrinho();
-    atualizarCatalogo();
   }
 
   // ---------------- eventos gerais ----------------
@@ -425,6 +469,10 @@
   }
 
   $('#ano').textContent = new Date().getFullYear();
+  if (DR.config.whatsapp) {
+    $('#contato').href = `https://wa.me/${DR.config.whatsapp.replace(/\D/g, '')}`;
+    $('#contato').hidden = false;
+  }
   montarFiltros();
   renderFaixa();
   atualizarContador();

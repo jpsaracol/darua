@@ -1,4 +1,5 @@
 /* DA RUA — dados da loja. As camisas e o estoque vêm da planilha do Google;
+   os pedidos vão para a planilha pela API (apps-script/Codigo.gs);
    as configurações vêm de js/config.js; o carrinho fica no navegador do cliente. */
 const DR = (() => {
   const CART_KEY = 'darua_carrinho_v1';
@@ -156,7 +157,7 @@ const DR = (() => {
           id: 'entrega',
           titulo: local ? 'Entrega local' : `Entrega — ${regiao}`,
           prazo: `${tab.prazo} dias úteis`,
-          valor, gratis
+          valor, gratis, local
         });
       }
     }
@@ -164,8 +165,40 @@ const DR = (() => {
     return ops;
   }
 
+  // ---------- API de pedidos (Google Apps Script) ----------
+  // Sem cabeçalho Content-Type o navegador manda text/plain, o que o Apps Script aceita sem bloqueio de CORS
+  async function api(acao, dados = {}) {
+    if (!config.api) throw new Error('A loja ainda não configurou o recebimento de pedidos.');
+    const r = await fetch(config.api, { method: 'POST', body: JSON.stringify({ acao, ...dados }) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.erro || 'Erro ao falar com o servidor.');
+    return j;
+  }
+
+  // ---------- Pix "copia e cola" (padrão BR Code do Banco Central) ----------
+  function crc16(s) {
+    let crc = 0xFFFF;
+    for (const b of new TextEncoder().encode(s)) {
+      crc ^= b << 8;
+      for (let i = 0; i < 8; i++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+    }
+    return crc.toString(16).toUpperCase().padStart(4, '0');
+  }
+  function pixPayload(valor, txid) {
+    const campo = (id, v) => id + String(v.length).padStart(2, '0') + v;
+    const limpo = (s, n) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ]/g, '').toUpperCase().slice(0, n);
+    const p = campo('00', '01') +
+      campo('26', campo('00', 'br.gov.bcb.pix') + campo('01', config.pix.chave.trim())) +
+      campo('52', '0000') + campo('53', '986') +
+      campo('54', Number(valor).toFixed(2)) +
+      campo('58', 'BR') + campo('59', limpo(config.pix.nome, 25)) + campo('60', limpo(config.pix.cidade, 15)) +
+      campo('62', campo('05', String(txid).replace(/[^A-Za-z0-9]/g, '').slice(0, 25) || '***')) +
+      '6304';
+    return p + crc16(p);
+  }
+
   return {
-    TAMANHOS, CATEGORIAS, config,
+    TAMANHOS, CATEGORIAS, config, api, pixPayload,
     brl, esc, normalizar, emPromo, precoFinal, totalEstoque, camisaSVG, imagemDe,
     paraProdutos, carregarCatalogo, catalogoEmCache, loadCart, saveCart, buscarCEP, opcoesFrete
   };

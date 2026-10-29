@@ -294,3 +294,15 @@ tr:last-child td { border-bottom: 0; }
   .estoque-form { grid-template-columns: repeat(3, 1fr); }
   .painel-topo .tag { display: none; }
 }
+
+/* ---------- pagamento Pix ---------- */
+.pix-qr { width: 220px; max-width: 100%; margin: 16px auto; background: #fff; border: 1px solid var(--linha); border-radius: var(--raio); padding: 8px; }
+.pix-qr svg { display: block; width: 100%; height: auto; }
+.pix-codigo { font-family: ui-monospace, monospace; font-size: 11px; word-break: break-all; resize: none; margin: 8px 0; }
+.sucesso .cep-info { margin-top: 12px; }
+
+/* ---------- página do vendedor ---------- */
+.pedido-dados { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 6px 16px; font-size: 14px; margin-bottom: 10px; }
+.pedido-dados a { color: var(--texto); }
+.pill.pix { background: #e6f0ff; color: #1f5fbf; }
+.pill.novo { background: var(--destaque); color: var(--preto); }
