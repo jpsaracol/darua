@@ -9,13 +9,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=202610282138">
+  <link rel="stylesheet" href="css/style.css?v=202610282154">
 </head>
 <body>
   <header class="topo">
     <div class="wrap topo-in">
       <a href="index.html" class="logo"><img src="logodarua.png" alt="DA RUA"></a>
       <div class="busca"><input id="busca" type="search" placeholder="Buscar time, seleção ou temporada..." aria-label="Buscar"></div>
+      <button class="btn-pedidos" id="abrirPedidos">Meus pedidos</button>
       <button class="btn-carrinho" id="abrirCarrinho" aria-label="Abrir carrinho">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
         <span id="qtdCarrinho">0</span>
@@ -75,11 +76,21 @@
     <div class="gaveta-rodape" id="carrinhoRodape"></div>
   </aside>
 
+  <!-- Meus pedidos -->
+  <div class="gaveta-fundo" id="pedidosFundo" hidden></div>
+  <aside class="gaveta" id="pedidosGaveta" hidden aria-label="Meus pedidos">
+    <div class="gaveta-topo">
+      <h3>Meus pedidos</h3>
+      <button class="fechar" id="fecharPedidos" aria-label="Fechar">×</button>
+    </div>
+    <div class="gaveta-corpo" id="pedidosCorpo"></div>
+  </aside>
+
   <div class="toast" id="toast" role="status"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="js/config.js?v=202610282138"></script>
-  <script src="js/data.js?v=202610282138"></script>
-  <script src="js/loja.js?v=202610282138"></script>
+  <script src="js/config.js?v=202610282154"></script>
+  <script src="js/data.js?v=202610282154"></script>
+  <script src="js/loja.js?v=202610282154"></script>
 </body>
 </html>

@@ -199,17 +199,29 @@
     return DR.config.pagamentoNaEntrega && !!frete && (frete.id === 'retirada' || frete.local);
   }
 
+  // Código Pix "copia e cola" + QR Code em SVG para um pedido
+  function pixQR(total, numero) {
+    const codigo = DR.pixPayload(total, 'DARUA' + numero);
+    let qr = '';
+    if (window.qrcode) {
+      const q = qrcode(0, 'M');
+      q.addData(codigo);
+      q.make();
+      qr = q.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
+    }
+    return { codigo, qr };
+  }
+
+  async function copiar(texto, campo) {
+    try { await navigator.clipboard.writeText(texto); }
+    catch (e) { campo.select(); document.execCommand('copy'); }
+    toast('Código Pix copiado!');
+  }
+
   function telaSucesso(corpo, rodape) {
     const p = pedidoFeito;
     if (p.pagamento === 'pix') {
-      const codigo = DR.pixPayload(p.total, 'DARUA' + p.numero);
-      let qr = '';
-      if (window.qrcode) {
-        const q = qrcode(0, 'M');
-        q.addData(codigo);
-        q.make();
-        qr = q.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
-      }
+      const { codigo, qr } = pixQR(p.total, p.numero);
       corpo.innerHTML = `<div class="sucesso">
         <div class="ok">✓</div>
         <h4>Pedido #${p.numero} recebido!</h4>
@@ -219,11 +231,7 @@
         <button class="btn primario largo" id="copiarPix">Copiar código Pix</button>
         <p class="cep-info">Recebedor: ${esc(DR.config.pix.nome)}. Assim que o pagamento for confirmado, separamos seu pedido e entramos em contato pelo telefone informado.</p>
       </div>`;
-      $('#copiarPix').onclick = async () => {
-        try { await navigator.clipboard.writeText(codigo); }
-        catch (e) { $('#pixCodigo').select(); document.execCommand('copy'); }
-        toast('Código Pix copiado!');
-      };
+      $('#copiarPix').onclick = () => copiar(codigo, $('#pixCodigo'));
     } else {
       corpo.innerHTML = `<div class="sucesso">
         <div class="ok">✓</div>
@@ -232,6 +240,8 @@
         Vamos entrar em contato pelo telefone informado para combinar. Obrigado por comprar na DA RUA!</p>
       </div>`;
     }
+    corpo.querySelector('.sucesso').insertAdjacentHTML('beforeend',
+      '<p class="cep-info">Acompanhe o andamento em <b>Meus pedidos</b>, no topo da loja.</p>');
     rodape.innerHTML = `<button class="btn largo" id="continuar">Continuar comprando</button>`;
     $('#continuar').onclick = () => { pedidoFeito = null; fecharCarrinho(); };
   }
@@ -413,6 +423,7 @@
         }
       });
       pedidoFeito = { numero: r.numero, total: r.total, pagamento, retirada: frete.id === 'retirada' };
+      DR.guardarPedido(r.numero, tel);
       carrinho = [];
       DR.saveCart(carrinho);
       endereco = null;
@@ -425,6 +436,101 @@
     enviando = false;
     atualizarContador();
     renderCarrinho();
+  }
+
+  // ---------------- meus pedidos (acompanhamento) ----------------
+  let acompanhados = [];
+  let carregandoPedidos = false;
+
+  function etapasDo(p) {
+    const retirada = /retir/i.test(p.frete_tipo);
+    return [
+      'Pedido recebido',
+      p.pagamento === 'Pix' ? 'Pagamento confirmado' : 'Pedido confirmado',
+      retirada ? 'Pronto para retirada' : 'Enviado',
+      retirada ? 'Retirado' : 'Entregue'
+    ];
+  }
+  const PASSO = { 'Aguardando Pix': 0, Novo: 0, Pago: 1, Enviado: 2, Entregue: 3 };
+
+  function cartaoPedido(p) {
+    const cancelado = p.status === 'Cancelado';
+    const passo = PASSO[p.status] ?? 0;
+    const data = p.data ? new Date(p.data).toLocaleDateString('pt-BR') : '';
+    return `<div class="meu-pedido" data-num="${p.numero}">
+      <div class="mp-topo"><b>Pedido #${p.numero}</b><small>${data}</small></div>
+      ${cancelado
+        ? '<p class="erro">Pedido cancelado. Em caso de dúvida, fale conosco.</p>'
+        : `<ol class="linha-tempo">${etapasDo(p).map((e, i) =>
+            `<li class="${i < passo ? 'feito' : i === passo ? 'atual' : ''}">${e}</li>`).join('')}</ol>`}
+      ${p.status === 'Aguardando Pix' ? '<p class="cep-info">Aguardando a confirmação do seu Pix.</p>' : ''}
+      <ul class="mp-itens">${p.itens.map(i => `<li>${i.qtd}x ${esc(i.nome)} — ${esc(i.t)}${i.perso ? ` · ${esc([i.perso.nome, i.perso.num].filter(Boolean).join(' '))}` : ''}</li>`).join('')}</ul>
+      <div class="linha-total"><span>${esc(p.pagamento)} · ${esc(p.frete_tipo)}</span><b>${brl(p.total)}</b></div>
+      ${p.status === 'Aguardando Pix' ? `<button class="btn primario largo" data-pagar="${p.numero}">Pagar com Pix</button><div class="mp-pix" hidden></div>` : ''}
+    </div>`;
+  }
+
+  function renderPedidos(erro) {
+    const corpo = $('#pedidosCorpo');
+    corpo.innerHTML = `
+      ${carregandoPedidos ? '<p class="vazio">Carregando seus pedidos...</p>' : ''}
+      ${!carregandoPedidos && !acompanhados.length ? '<p class="vazio">Nenhum pedido feito neste aparelho ainda.</p>' : ''}
+      ${acompanhados.map(cartaoPedido).join('')}
+      <form class="bloco" id="formConsulta">
+        <h4>Consultar outro pedido</h4>
+        <input type="number" id="consNum" placeholder="Número do pedido (ex: 1001)" required>
+        <input type="tel" id="consTel" placeholder="WhatsApp usado na compra" required>
+        ${erro ? `<p class="erro">${esc(erro)}</p>` : ''}
+        <button class="btn largo">Consultar</button>
+      </form>`;
+
+    corpo.querySelectorAll('[data-pagar]').forEach(b => b.onclick = () => {
+      const p = acompanhados.find(x => String(x.numero) === b.dataset.pagar);
+      const box = b.nextElementSibling;
+      if (!box.hidden) { box.hidden = true; return; }
+      const { codigo, qr } = pixQR(p.total, p.numero);
+      box.innerHTML = `<div class="pix-qr">${qr}</div>
+        <textarea class="pix-codigo" readonly rows="4">${esc(codigo)}</textarea>
+        <button class="btn largo" type="button">Copiar código Pix</button>`;
+      box.querySelector('button').onclick = () => copiar(codigo, box.querySelector('textarea'));
+      box.hidden = false;
+    });
+
+    $('#formConsulta').onsubmit = async e => {
+      e.preventDefault();
+      const numero = Number($('#consNum').value), telefone = $('#consTel').value;
+      try {
+        const r = await DR.api('acompanhar', { consultas: [{ numero, telefone }] });
+        DR.guardarPedido(numero, telefone);
+        acompanhados = [r.pedidos[0], ...acompanhados.filter(p => p.numero !== numero)];
+        renderPedidos();
+      } catch (er) {
+        renderPedidos(er.message);
+      }
+    };
+  }
+
+  async function abrirPedidos() {
+    $('#pedidosGaveta').hidden = false;
+    $('#pedidosFundo').hidden = false;
+    document.body.style.overflow = 'hidden';
+    const consultas = DR.meusPedidos();
+    carregandoPedidos = consultas.length > 0;
+    renderPedidos();
+    if (!consultas.length) return;
+    try {
+      acompanhados = (await DR.api('acompanhar', { consultas })).pedidos;
+      carregandoPedidos = false;
+      renderPedidos();
+    } catch (e) {
+      carregandoPedidos = false;
+      renderPedidos(e.message);
+    }
+  }
+  function fecharPedidos() {
+    $('#pedidosGaveta').hidden = true;
+    $('#pedidosFundo').hidden = true;
+    document.body.style.overflow = '';
   }
 
   // ---------------- eventos gerais ----------------
@@ -443,9 +549,12 @@
 
   $('#modalProduto').onclick = e => { if (e.target.id === 'modalProduto' || e.target.closest('[data-fechar]')) fecharProduto(); };
   $('#abrirCarrinho').onclick = abrirCarrinho;
+  $('#abrirPedidos').onclick = abrirPedidos;
+  $('#fecharPedidos').onclick = fecharPedidos;
+  $('#pedidosFundo').onclick = fecharPedidos;
   $('#fecharCarrinho').onclick = fecharCarrinho;
   $('#carrinhoFundo').onclick = fecharCarrinho;
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { fecharProduto(); fecharCarrinho(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { fecharProduto(); fecharCarrinho(); fecharPedidos(); } });
 
   // carrinho aberto em outra aba do mesmo navegador
   window.addEventListener('storage', () => {

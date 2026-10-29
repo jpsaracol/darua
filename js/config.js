@@ -7,9 +7,8 @@ const DARUA_CONFIG = {
   api: 'https://script.google.com/macros/s/AKfycbwnIFWbSRsY4L91uTGGjEJp_KyaB-T1Hp6Z152_9lXl3-JskbMfOuWNpKaQJHtKwyFRQA/exec',
 
   // ---------- pagamento ----------
-  // TODO(human): preencha os 3 campos do Pix abaixo com os seus dados
   pix: {
-    chave: '',               // CPF/CNPJ só números, e-mail, telefone no formato +5554999999999 ou chave aleatória
+    chave: '05490345012',             // CPF/CNPJ só números, e-mail, telefone no formato +5554999999999 ou chave aleatória
     nome: 'DA RUA',            // nome de quem recebe (até 25 letras, sem acento)
     cidade: 'VERANOPOLIS'      // cidade de quem recebe (até 15 letras, sem acento)
   },

@@ -23,7 +23,7 @@ function doPost(e) {
   let resp;
   try {
     const req = JSON.parse(e.postData.contents);
-    const rotas = { pedido: criarPedido, listar: listarPedidos, status: mudarStatus };
+    const rotas = { pedido: criarPedido, acompanhar: acompanharPedidos, listar: listarPedidos, status: mudarStatus };
     if (!rotas[req.acao]) throw new Error('Ação inválida.');
     resp = rotas[req.acao](req);
   } catch (err) {
@@ -155,6 +155,46 @@ function criarPedido(req) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---------------- acompanhamento (cliente) ----------------
+// O cliente prova que o pedido é dele informando o WhatsApp usado na compra.
+// Recebe { consultas: [{ numero, telefone }] } e devolve só os pedidos que conferem.
+function acompanharPedidos(req) {
+  const consultas = Array.isArray(req.consultas) ? req.consultas.slice(0, 20) : [];
+  const v = abaPedidos().getDataRange().getValues();
+  const col = {};
+  v[0].forEach(function (c, i) { col[c] = i; });
+
+  const pedidos = [];
+  consultas.forEach(function (q) {
+    for (let i = 1; i < v.length; i++) {
+      const row = v[i];
+      if (num(row[col.numero]) !== num(q.numero)) continue;
+      if (!telefoneConfere(String(row[col.telefone]), String(q.telefone || ''))) break;
+      let itens = [];
+      try { itens = JSON.parse(row[col.itens_json]); } catch (e) { }
+      // nada de telefone ou endereço na resposta
+      pedidos.push({
+        numero: num(row[col.numero]), data: row[col.data], status: row[col.status],
+        pagamento: row[col.pagamento], frete_tipo: row[col.frete_tipo], frete_valor: num(row[col.frete_valor]),
+        subtotal: num(row[col.subtotal]), total: num(row[col.total]),
+        itens: itens.map(function (it) { return { nome: it.nome, t: it.t, qtd: it.qtd, unit: it.unit, perso: it.perso }; })
+      });
+      break;
+    }
+  });
+  // consulta única que não confere: mesma mensagem para número inexistente ou telefone errado
+  if (consultas.length === 1 && !pedidos.length) throw new Error('Pedido não encontrado. Confira o número e o WhatsApp usados na compra.');
+  return { ok: true, pedidos: pedidos };
+}
+
+// Decide se o telefone digitado na consulta é o mesmo salvo no pedido.
+function telefoneConfere(salvo, informado) {
+  const a = salvo.replace(/\D/g, '');
+  const b = informado.replace(/\D/g, '');
+  if (b.length < 8) return false;
+  return a.slice(-8) === b.slice(-8);
 }
 
 // ---------------- página do vendedor ----------------

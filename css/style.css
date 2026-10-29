@@ -306,3 +306,22 @@ tr:last-child td { border-bottom: 0; }
 .pedido-dados a { color: var(--texto); }
 .pill.pix { background: #e6f0ff; color: #1f5fbf; }
 .pill.novo { background: var(--destaque); color: var(--preto); }
+
+/* ---------- meus pedidos ---------- */
+.btn-pedidos { background: none; color: var(--branco); border: 1px solid #444; border-radius: 999px; padding: 9px 14px; font-weight: 600; font-size: 14px; white-space: nowrap; }
+.meu-pedido { border: 1px solid var(--linha); border-radius: var(--raio); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.mp-topo { display: flex; justify-content: space-between; align-items: baseline; }
+.mp-topo small { color: var(--suave); }
+.mp-itens { margin: 0; padding-left: 18px; font-size: 13px; color: #444; }
+.linha-tempo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.linha-tempo li { position: relative; padding: 0 0 14px 26px; font-size: 14px; color: var(--suave); }
+.linha-tempo li:last-child { padding-bottom: 0; }
+.linha-tempo li::before { content: ''; position: absolute; left: 4px; top: 4px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #ccc; background: var(--branco); z-index: 1; }
+.linha-tempo li:not(:last-child)::after { content: ''; position: absolute; left: 10px; top: 16px; bottom: 0; width: 2px; background: #ddd; }
+.linha-tempo li.feito { color: var(--texto); }
+.linha-tempo li.feito::before { background: var(--verde); border-color: var(--verde); }
+.linha-tempo li.feito::after { background: var(--verde); }
+.linha-tempo li.atual { color: var(--texto); font-weight: 700; }
+.linha-tempo li.atual::before { background: var(--destaque); border-color: var(--preto); }
+@media (max-width: 760px) { .btn-pedidos { padding: 8px 12px; font-size: 13px; } }
+@media (max-width: 760px) { .btn-pedidos { margin-left: auto; } .btn-carrinho { margin-left: 0; } }

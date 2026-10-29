@@ -132,6 +132,17 @@ const DR = (() => {
     try { localStorage.setItem(CART_KEY, JSON.stringify(c)); } catch (e) { }
   }
 
+  // ---------- pedidos feitos neste aparelho (para "Meus pedidos") ----------
+  const PEDIDOS_KEY = 'darua_meus_pedidos_v1';
+  function meusPedidos() {
+    try { return JSON.parse(localStorage.getItem(PEDIDOS_KEY)) || []; } catch (e) { return []; }
+  }
+  function guardarPedido(numero, telefone) {
+    const lista = meusPedidos().filter(p => Number(p.numero) !== Number(numero));
+    lista.unshift({ numero: Number(numero), telefone });
+    try { localStorage.setItem(PEDIDOS_KEY, JSON.stringify(lista.slice(0, 20))); } catch (e) { }
+  }
+
   // ---------- frete ----------
   async function buscarCEP(cep) {
     const d = String(cep).replace(/\D/g, '');
@@ -198,7 +209,7 @@ const DR = (() => {
   }
 
   return {
-    TAMANHOS, CATEGORIAS, config, api, pixPayload,
+    TAMANHOS, CATEGORIAS, config, api, pixPayload, meusPedidos, guardarPedido,
     brl, esc, normalizar, emPromo, precoFinal, totalEstoque, camisaSVG, imagemDe,
     paraProdutos, carregarCatalogo, catalogoEmCache, loadCart, saveCart, buscarCEP, opcoesFrete
   };
