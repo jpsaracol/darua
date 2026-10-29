@@ -260,7 +260,9 @@
     const frete = ops.find(o => o.id === freteId);
     const falta = cfg.freteGratisAcima - subtotal;
     const podeNaEntrega = pagamentoNaEntregaPermitido(frete);
+    const pixAtivo = !!cfg.pix.chave;   // sem chave cadastrada, o Pix nem aparece
     if (!podeNaEntrega) pagamento = 'pix';
+    else if (!pixAtivo) pagamento = 'entrega';
 
     corpo.innerHTML = `
       ${L.map(l => `
@@ -305,10 +307,12 @@
 
       <div class="bloco">
         <h4>Pagamento</h4>
-        <label class="opcao-frete">
-          <input type="radio" name="pagamento" value="pix" ${pagamento === 'pix' ? 'checked' : ''}>
-          <span>Pix<small>QR Code e código copia e cola na hora</small></span>
-        </label>
+        ${pixAtivo ? `
+          <label class="opcao-frete">
+            <input type="radio" name="pagamento" value="pix" ${pagamento === 'pix' ? 'checked' : ''}>
+            <span>Pix<small>QR Code e código copia e cola na hora</small></span>
+          </label>` : ''}
+        ${!pixAtivo && !podeNaEntrega ? '<p class="erro">Por enquanto só atendemos retirada e entregas na nossa cidade. Escolha "Retirar com o vendedor".</p>' : ''}
         ${podeNaEntrega ? `
           <label class="opcao-frete">
             <input type="radio" name="pagamento" value="entrega" ${pagamento === 'entrega' ? 'checked' : ''}>
