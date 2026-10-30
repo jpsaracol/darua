@@ -335,9 +335,11 @@ function identificarCamisa(req) {
   };
   const modelos = modelosGemini(chave);
   for (let i = 0; i < modelos.length && !resp; i++) {
+    // a busca do Google tem cota grátis própria (429 quando acaba): aí identifica só pela foto, ainda com raciocínio curto.
+    // 400 = o modelo não aceita a opção de raciocínio curto; repete sem ela.
     let r = tentar(modelos[i], true, true);
-    if (r.getResponseCode() === 400) r = tentar(modelos[i], true, false);           // modelo não aceita thinkingLevel
-    if (r.getResponseCode() === 400 || r.getResponseCode() === 429) r = tentar(modelos[i], false, false);   // sem busca
+    if (r.getResponseCode() === 429) r = tentar(modelos[i], false, true);
+    if (r.getResponseCode() === 400) r = tentar(modelos[i], false, false);
     ultimo = r.getResponseCode();
     if (ultimo === 200) {
       resp = r;
