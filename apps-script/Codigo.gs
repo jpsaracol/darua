@@ -11,8 +11,39 @@ const TAMANHOS = ['P', 'M', 'G', 'GG', 'XGG'];
 const CATEGORIAS = ['Brasileirão', 'Europeu', 'Seleções', 'Retrô'];
 const TIPOS = ['Torcedor', 'Jogador', 'Retrô', 'Treino'];
 const PASTA_FOTOS = 'DA RUA - fotos';
-// Modelo do Gemini. Se o Google aposentar este, crie a propriedade GEMINI_MODELO no script com o nome novo.
-const GEMINI_MODELO_PADRAO = 'gemini-2.5-flash';
+// Modelos do Gemini, do preferido ao reserva (o Flash-Lite tem mais cota grátis por dia).
+// Se o Google aposentar todos, o script pergunta ao Google quais existem e usa um "flash" disponível.
+// Para forçar um modelo, crie a propriedade GEMINI_MODELO no script.
+const GEMINI_MODELOS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/';
+
+function chamarGemini(modelo, chave, corpo) {
+  return UrlFetchApp.fetch(GEMINI_URL + 'models/' + modelo + ':generateContent', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { 'x-goog-api-key': chave }, payload: JSON.stringify(corpo)
+  });
+}
+
+// Lista de modelos a tentar: o forçado, o último que funcionou, a lista fixa e os "flash" que o Google disser que existem
+function modelosGemini(chave) {
+  const props = PropertiesService.getScriptProperties();
+  const lista = [props.getProperty('GEMINI_MODELO'), props.getProperty('GEMINI_MODELO_OK')].concat(GEMINI_MODELOS);
+  try {
+    const r = UrlFetchApp.fetch(GEMINI_URL + 'models?pageSize=200', { muteHttpExceptions: true, headers: { 'x-goog-api-key': chave } });
+    if (r.getResponseCode() === 200) {
+      (JSON.parse(r.getContentText()).models || [])
+        .filter(function (m) {
+          const n = String(m.name);
+          return /flash/.test(n) && !/image|tts|audio|live|preview|exp/.test(n) &&
+            (m.supportedGenerationMethods || []).indexOf('generateContent') >= 0;
+        })
+        .map(function (m) { return String(m.name).replace('models/', ''); })
+        .sort().reverse()   // versão mais nova primeiro
+        .forEach(function (n) { lista.push(n); });
+    }
+  } catch (e) { }
+  return lista.filter(function (m, i) { return m && lista.indexOf(m) === i; }).slice(0, 8);
+}
 const STATUS = ['Aguardando Pix', 'Novo', 'Pago', 'Enviado', 'Entregue', 'Cancelado'];
 const ABA_CAMISAS = 'camisas';
 const ABA_PEDIDOS = 'pedidos';
@@ -280,25 +311,31 @@ function identificarCamisa(req) {
   if (!chave) throw new Error('Falta a chave do Gemini (GEMINI_KEY) nas propriedades do script.');
   if (!req.imagem || String(req.imagem).length > 4e6) throw new Error('Foto inválida ou grande demais.');
 
-  const modelo = props.getProperty('GEMINI_MODELO') || GEMINI_MODELO_PADRAO;
-  const resp = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelo + ':generateContent', {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { 'x-goog-api-key': chave },
-    muteHttpExceptions: true,
-    payload: JSON.stringify({
-      contents: [{ parts: [
-        { text: PROMPT_CAMISA },
-        { inline_data: { mime_type: req.mime || 'image/jpeg', data: req.imagem } }
-      ] }],
-      tools: [{ google_search: {} }]
-    })
-  });
+  const corpo = function (comBusca) {
+    const b = { contents: [{ parts: [
+      { text: PROMPT_CAMISA },
+      { inline_data: { mime_type: req.mime || 'image/jpeg', data: req.imagem } }
+    ] }] };
+    if (comBusca) b.tools = [{ google_search: {} }];
+    return b;
+  };
 
-  const codigo = resp.getResponseCode();
-  if (codigo === 429) throw new Error('A IA atingiu o limite grátis por agora. Tente de novo em alguns minutos ou preencha à mão.');
-  if (codigo === 404) throw new Error('O modelo "' + modelo + '" não existe mais. Troque em GEMINI_MODELO nas propriedades do script.');
-  if (codigo !== 200) throw new Error('A IA não respondeu (erro ' + codigo + '). Preencha à mão.');
+  // Tenta os modelos em ordem. Modelo aposentado (404) ou cota grátis esgotada (429) passa para o próximo;
+  // o primeiro que funcionar fica guardado para as próximas vezes.
+  let resp = null, ultimo = 0;
+  const modelos = modelosGemini(chave);
+  for (let i = 0; i < modelos.length && !resp; i++) {
+    let r = chamarGemini(modelos[i], chave, corpo(true));
+    // se a busca do Google não estiver liberada para esse modelo/cota, tenta só com a foto
+    if (r.getResponseCode() === 400 || r.getResponseCode() === 429) r = chamarGemini(modelos[i], chave, corpo(false));
+    ultimo = r.getResponseCode();
+    if (ultimo === 200) {
+      resp = r;
+      if (props.getProperty('GEMINI_MODELO_OK') !== modelos[i]) props.setProperty('GEMINI_MODELO_OK', modelos[i]);
+    }
+  }
+  if (!resp && ultimo === 429) throw new Error('A IA atingiu o limite grátis por agora. Tente de novo mais tarde ou preencha à mão.');
+  if (!resp) throw new Error('A IA não respondeu (erro ' + ultimo + '). Preencha à mão.');
 
   const cand = (JSON.parse(resp.getContentText()).candidates || [])[0];
   const txt = ((cand && cand.content && cand.content.parts) || []).map(function (p) { return p.text || ''; }).join('');
@@ -391,6 +428,18 @@ function cadastrarCamisa(req) {
 // (salvar fotos no Drive e falar com a IA). Depois é só implantar uma nova versão.
 function autorizar() {
   DriveApp.getRootFolder();
-  UrlFetchApp.fetch('https://generativelanguage.googleapis.com/', { muteHttpExceptions: true });
-  Logger.log(PropertiesService.getScriptProperties().getProperty('GEMINI_KEY') ? 'Tudo certo: chave do Gemini encontrada.' : 'Falta criar a propriedade GEMINI_KEY.');
+  const chave = PropertiesService.getScriptProperties().getProperty('GEMINI_KEY');
+  if (!chave) { Logger.log('Falta criar a propriedade GEMINI_KEY.'); return; }
+  const corpo = { contents: [{ parts: [{ text: 'Responda só: ok' }] }] };
+  const modelos = modelosGemini(chave);
+  for (let i = 0; i < modelos.length; i++) {
+    const r = chamarGemini(modelos[i], chave, corpo);
+    Logger.log(modelos[i] + ' → ' + (r.getResponseCode() === 200 ? 'FUNCIONA ✓' : 'erro ' + r.getResponseCode()));
+    if (r.getResponseCode() === 200) {
+      PropertiesService.getScriptProperties().setProperty('GEMINI_MODELO_OK', modelos[i]);
+      Logger.log('Tudo certo! O cadastro por foto vai usar: ' + modelos[i]);
+      return;
+    }
+  }
+  Logger.log('Nenhum modelo funcionou. Confira se a chave GEMINI_KEY está certa.');
 }
