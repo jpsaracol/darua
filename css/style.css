@@ -325,3 +325,35 @@ tr:last-child td { border-bottom: 0; }
 .linha-tempo li.atual::before { background: var(--destaque); border-color: var(--preto); }
 @media (max-width: 760px) { .btn-pedidos { padding: 8px 12px; font-size: 13px; } }
 @media (max-width: 760px) { .btn-pedidos { margin-left: auto; } .btn-carrinho { margin-left: 0; } }
+
+/* ---------- vendedor: abas e cadastro de camisa ---------- */
+.painel-topo nav .aba.on { background: var(--destaque); color: var(--preto); border-color: var(--destaque); font-weight: 700; }
+.cadastro { max-width: 640px; padding-top: 24px; padding-bottom: 60px; display: flex; flex-direction: column; gap: 14px; }
+.cadastro h2 { font-family: var(--titulo); font-weight: 400; font-size: 32px; text-transform: uppercase; margin: 0; }
+.cadastro .dica { margin: 0; }
+.foto-box { display: grid; place-items: center; width: 100%; min-height: 180px; border: 2px dashed var(--linha); border-radius: var(--raio); background: var(--branco); cursor: pointer; overflow: hidden; position: relative; text-align: center; }
+.foto-box input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.foto-box img { max-height: 320px; width: 100%; object-fit: contain; background: #efefec; }
+.foto-box span { padding: 12px; font-weight: 600; }
+.foto-box img:not([hidden]) + span { position: absolute; bottom: 8px; right: 8px; background: var(--preto); color: var(--branco); border-radius: 999px; padding: 6px 12px; font-size: 13px; }
+.aviso-ia { margin: 0; padding: 12px 14px; border-radius: 8px; font-size: 14px; }
+.aviso-ia.ok { background: #e6f6ec; color: #135c33; }
+.aviso-ia.duvida { background: #fff4d6; color: #6b4b00; }
+.cadastro form { display: flex; flex-direction: column; gap: 14px; }
+.campos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.campos label, .estoque label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+.campos .cheio { grid-column: 1 / -1; }
+.campos input, .campos select, .campos textarea { width: 100%; }
+.campos input[type=color] { height: 42px; padding: 2px; border: 1px solid var(--linha); border-radius: 8px; background: var(--branco); }
+.estoque { border: 1px solid var(--linha); border-radius: var(--raio); padding: 12px; margin: 0; }
+.estoque legend { font-size: 13px; font-weight: 700; padding: 0 6px; }
+#estoqueCampos { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+#estoqueCampos input { width: 100%; text-align: center; }
+.checks { display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; }
+.checks label { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 760px) {
+  .campos { grid-template-columns: 1fr; }
+  #estoqueCampos { grid-template-columns: repeat(3, 1fr); }
+  .painel-topo nav { gap: 6px; }
+  .painel-topo nav a { display: none; }
+}

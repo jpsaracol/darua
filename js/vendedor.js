@@ -7,6 +7,7 @@
 
   let senha = '';
   let pedidos = [];
+  window.DRVendedor = { senha: () => senha, toast: m => toast(m) };   // usado pelo cadastro de camisas
 
   function toast(msg) {
     const t = $('#toast');

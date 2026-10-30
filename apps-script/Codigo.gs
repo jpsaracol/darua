@@ -8,6 +8,11 @@ const SENHA = 'TROQUE_ESTA_SENHA';
 
 const PERSONALIZACAO_PRECO = 30;   // igual ao js/config.js do site
 const TAMANHOS = ['P', 'M', 'G', 'GG', 'XGG'];
+const CATEGORIAS = ['Brasileirão', 'Europeu', 'Seleções', 'Retrô'];
+const TIPOS = ['Torcedor', 'Jogador', 'Retrô', 'Treino'];
+const PASTA_FOTOS = 'DA RUA - fotos';
+// Modelo do Gemini. Se o Google aposentar este, crie a propriedade GEMINI_MODELO no script com o nome novo.
+const GEMINI_MODELO_PADRAO = 'gemini-2.5-flash';
 const STATUS = ['Aguardando Pix', 'Novo', 'Pago', 'Enviado', 'Entregue', 'Cancelado'];
 const ABA_CAMISAS = 'camisas';
 const ABA_PEDIDOS = 'pedidos';
@@ -23,7 +28,10 @@ function doPost(e) {
   let resp;
   try {
     const req = JSON.parse(e.postData.contents);
-    const rotas = { pedido: criarPedido, acompanhar: acompanharPedidos, listar: listarPedidos, status: mudarStatus };
+    const rotas = {
+      pedido: criarPedido, acompanhar: acompanharPedidos, listar: listarPedidos, status: mudarStatus,
+      identificar: identificarCamisa, cadastrar: cadastrarCamisa
+    };
     if (!rotas[req.acao]) throw new Error('Ação inválida.');
     resp = rotas[req.acao](req);
   } catch (err) {
@@ -238,4 +246,151 @@ function mudarStatus(req) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---------------- cadastro de camisa por foto (IA Gemini, plano grátis) ----------------
+// A chave fica em: Apps Script → Configurações do projeto → Propriedades do script → GEMINI_KEY
+
+const PROMPT_CAMISA = [
+  'Você é o assistente de cadastro de uma loja brasileira de camisas de time.',
+  'Olhe a foto e identifique a camisa. Use a busca do Google para confirmar time, temporada e se é a camisa 1 (home), 2 (away), 3 (third), de treino ou retrô.',
+  'Responda APENAS com um objeto JSON, sem texto antes ou depois, com estes campos:',
+  '{',
+  '  "nome": "ex.: Grêmio 24/25 Home",',
+  '  "time": "nome do time ou seleção em português, ex.: Seleção Brasileira",',
+  '  "categoria": "uma de: ' + CATEGORIAS.join(', ') + '",',
+  '  "temporada": "ex.: 24/25 para clubes, 2024 para seleções",',
+  '  "tipo": "uma de: ' + TIPOS.join(', ') + '",',
+  '  "cor1": "cor principal em hexadecimal, ex.: #0d80bf",',
+  '  "cor2": "cor secundária em hexadecimal",',
+  '  "listras": "SIM se a camisa tem listras verticais, senão NAO",',
+  '  "descricao": "2 frases em português sobre a camisa (cores, detalhes do design, temporada)",',
+  '  "confianca": "alta, media ou baixa",',
+  '  "observacao": "se houver dúvida (ex.: duas temporadas parecidas), explique em uma frase; senão vazio"',
+  '}',
+  'Regras: Brasileirão = clubes brasileiros; Europeu = clubes de fora do Brasil; Seleções = seleções nacionais; Retrô = camisas de temporadas antigas (antes de 2015).',
+  'Na descrição, não diga que a camisa é oficial, original ou licenciada, não cite preço e não invente tecnologia de tecido.',
+  'Se a foto não for de uma camisa de time, responda {"erro": "explique o motivo"}.'
+].join('\n');
+
+function identificarCamisa(req) {
+  conferirSenha(req);
+  const props = PropertiesService.getScriptProperties();
+  const chave = props.getProperty('GEMINI_KEY');
+  if (!chave) throw new Error('Falta a chave do Gemini (GEMINI_KEY) nas propriedades do script.');
+  if (!req.imagem || String(req.imagem).length > 4e6) throw new Error('Foto inválida ou grande demais.');
+
+  const modelo = props.getProperty('GEMINI_MODELO') || GEMINI_MODELO_PADRAO;
+  const resp = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelo + ':generateContent', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'x-goog-api-key': chave },
+    muteHttpExceptions: true,
+    payload: JSON.stringify({
+      contents: [{ parts: [
+        { text: PROMPT_CAMISA },
+        { inline_data: { mime_type: req.mime || 'image/jpeg', data: req.imagem } }
+      ] }],
+      tools: [{ google_search: {} }]
+    })
+  });
+
+  const codigo = resp.getResponseCode();
+  if (codigo === 429) throw new Error('A IA atingiu o limite grátis por agora. Tente de novo em alguns minutos ou preencha à mão.');
+  if (codigo === 404) throw new Error('O modelo "' + modelo + '" não existe mais. Troque em GEMINI_MODELO nas propriedades do script.');
+  if (codigo !== 200) throw new Error('A IA não respondeu (erro ' + codigo + '). Preencha à mão.');
+
+  const cand = (JSON.parse(resp.getContentText()).candidates || [])[0];
+  const txt = ((cand && cand.content && cand.content.parts) || []).map(function (p) { return p.text || ''; }).join('');
+  // com a busca do Google ligada o Gemini não aceita "modo JSON", então pegamos o primeiro {...} do texto
+  const m = txt.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('A IA não conseguiu identificar a camisa. Tente outra foto ou preencha à mão.');
+  let d;
+  try { d = JSON.parse(m[0]); } catch (e) { throw new Error('A IA respondeu num formato estranho. Tente de novo.'); }
+  if (d.erro) throw new Error(texto(d.erro, 200));
+
+  const hex = function (v) { return /^#[0-9a-f]{6}$/i.test(String(v || '').trim()) ? String(v).trim() : ''; };
+  return {
+    ok: true,
+    camisa: {
+      nome: texto(d.nome, 80), time: texto(d.time, 60), temporada: texto(d.temporada, 10),
+      categoria: CATEGORIAS.indexOf(d.categoria) >= 0 ? d.categoria : '',
+      tipo: TIPOS.indexOf(d.tipo) >= 0 ? d.tipo : 'Torcedor',
+      cor1: hex(d.cor1), cor2: hex(d.cor2),
+      listras: String(d.listras).toUpperCase() === 'SIM' ? 'SIM' : 'NAO',
+      descricao: texto(d.descricao, 400)
+    },
+    confianca: texto(d.confianca, 10),
+    observacao: texto(d.observacao, 200)
+  };
+}
+
+function slug(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+}
+
+// Salva a foto numa pasta do Drive aberta para visualização e devolve um link que funciona em <img>
+function salvarFoto(base64, mime, nome) {
+  const pastas = DriveApp.getFoldersByName(PASTA_FOTOS);
+  const pasta = pastas.hasNext() ? pastas.next() : DriveApp.createFolder(PASTA_FOTOS);
+  const ext = mime === 'image/png' ? '.png' : '.jpg';
+  const arq = pasta.createFile(Utilities.newBlob(Utilities.base64Decode(base64), mime, nome + ext));
+  arq.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return 'https://lh3.googleusercontent.com/d/' + arq.getId();
+}
+
+function cadastrarCamisa(req) {
+  conferirSenha(req);
+  const cm = req.camisa || {};
+  const nome = texto(cm.nome, 80);
+  if (!nome) throw new Error('Informe o nome da camisa.');
+  if (CATEGORIAS.indexOf(cm.categoria) < 0) throw new Error('Escolha a categoria.');
+  const preco = num(cm.preco);
+  if (!(preco > 0)) throw new Error('Informe o preço.');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const c = lerCamisas();
+    // id único: nome em minúsculas sem acento; se já existir, ganha -2, -3...
+    const base = slug(nome) || 'camisa';
+    let id = base, n = 2;
+    while (c.linhaDe[id] !== undefined) id = base + '-' + n++;
+
+    const foto = req.foto ? salvarFoto(req.foto, req.mime || 'image/jpeg', id) : '';
+    const promo = num(cm.preco_promo);
+    const valores = {
+      id: id, nome: nome, time: texto(cm.time, 60), categoria: cm.categoria, temporada: texto(cm.temporada, 10),
+      tipo: TIPOS.indexOf(cm.tipo) >= 0 ? cm.tipo : 'Torcedor',
+      preco: preco, preco_promo: promo > 0 ? promo : '', foto: foto,
+      cor1: texto(cm.cor1, 7), cor2: texto(cm.cor2, 7),
+      listras: cm.listras === 'SIM' ? 'SIM' : 'NAO', descricao: texto(cm.descricao, 400),
+      ativo: cm.ativo === 'NAO' ? 'NAO' : 'SIM', destaque: cm.destaque === 'SIM' ? 'SIM' : 'NAO'
+    };
+    TAMANHOS.forEach(function (t) { valores[t] = Math.max(0, parseInt(cm[t], 10) || 0); });
+
+    const linha = c.v[0].map(function (cab) {
+      const k = String(cab).trim();
+      return valores[k] !== undefined ? valores[k] : '';
+    });
+    const nova = c.sh.getLastRow() + 1;
+    c.sh.getRange(nova, 1, 1, linha.length).setValues([linha]);
+    // a coluna "total" soma os tamanhos, igual às outras linhas
+    if (c.col.total !== undefined && c.col.P !== undefined && c.col.XGG !== undefined) {
+      const letra = function (i) { return c.sh.getRange(1, i + 1).getA1Notation().replace(/\d+/g, ''); };
+      c.sh.getRange(nova, c.col.total + 1).setFormula('=SUM(' + letra(c.col.P) + nova + ':' + letra(c.col.XGG) + nova + ')');
+    }
+    return { ok: true, id: id, foto: foto };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Rode esta função UMA vez pelo editor (botão ▶ Executar) para o Google pedir as permissões novas
+// (salvar fotos no Drive e falar com a IA). Depois é só implantar uma nova versão.
+function autorizar() {
+  DriveApp.getRootFolder();
+  UrlFetchApp.fetch('https://generativelanguage.googleapis.com/', { muteHttpExceptions: true });
+  Logger.log(PropertiesService.getScriptProperties().getProperty('GEMINI_KEY') ? 'Tudo certo: chave do Gemini encontrada.' : 'Falta criar a propriedade GEMINI_KEY.');
 }

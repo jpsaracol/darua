@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=202610282154">
+  <link rel="stylesheet" href="css/style.css?v=202610301200">
 </head>
 <body>
   <section class="login" id="login">
@@ -28,16 +28,18 @@
       <div class="wrap topo-in">
         <div style="display:flex;align-items:center">
           <a href="index.html" class="logo"><img src="logodarua.png" alt="DA RUA"></a>
-          <span class="tag">Pedidos</span>
+          <span class="tag">Vendedor</span>
         </div>
         <nav>
+          <button class="aba on" data-aba="pedidos">Pedidos</button>
+          <button class="aba" data-aba="cadastro">+ Camisa</button>
           <a href="index.html" target="_blank">Ver loja ↗</a>
           <button id="sair">Sair</button>
         </nav>
       </div>
     </header>
 
-    <main class="wrap" style="padding-top:24px">
+    <main class="wrap" id="abaPedidos" style="padding-top:24px">
       <div class="kpis" id="kpis"></div>
       <div class="barra">
         <input type="search" id="busca" placeholder="Buscar por nome, nº ou telefone...">
@@ -48,12 +50,52 @@
       <p class="dica" id="atualizadoEm" style="margin:-6px 0 14px"></p>
       <div class="pedidos" id="lista"></div>
     </main>
+
+    <main class="wrap cadastro" id="abaCadastro" hidden>
+      <h2>Cadastrar camisa</h2>
+      <p class="dica">Tire uma foto de frente, com o escudo aparecendo e boa luz. A IA preenche o que conseguir; confira tudo e complete preço e estoque.</p>
+
+      <label class="foto-box" id="fotoBox">
+        <input type="file" id="fotoInput" accept="image/*" capture="environment">
+        <img id="fotoPrevia" alt="" hidden>
+        <span id="fotoTexto">📷 Tirar foto ou escolher da galeria</span>
+      </label>
+      <button class="btn primario largo" id="identificar" type="button" disabled>Identificar com IA</button>
+      <p class="aviso-ia" id="avisoIA" hidden></p>
+
+      <form id="formCamisa" autocomplete="off">
+        <div class="campos">
+          <label class="cheio">Nome <input type="text" name="nome" required maxlength="80" placeholder="Grêmio 24/25 Home"></label>
+          <label>Time <input type="text" name="time" maxlength="60"></label>
+          <label>Temporada <input type="text" name="temporada" maxlength="10" placeholder="24/25"></label>
+          <label>Categoria <select name="categoria" required></select></label>
+          <label>Tipo <select name="tipo"></select></label>
+          <label>Preço (R$) <input type="text" name="preco" inputmode="decimal" required placeholder="249,90"></label>
+          <label>Preço promocional <input type="text" name="preco_promo" inputmode="decimal" placeholder="opcional"></label>
+          <label>Cor 1 <input type="color" name="cor1" value="#111111"></label>
+          <label>Cor 2 <input type="color" name="cor2" value="#ffffff"></label>
+          <label class="cheio">Descrição <textarea name="descricao" rows="3" maxlength="400"></textarea></label>
+        </div>
+        <fieldset class="estoque">
+          <legend>Estoque por tamanho</legend>
+          <div id="estoqueCampos"></div>
+        </fieldset>
+        <div class="checks">
+          <label><input type="checkbox" name="listras"> Listras</label>
+          <label><input type="checkbox" name="destaque"> Destaque na vitrine</label>
+          <label><input type="checkbox" name="ativo" checked> Mostrar na loja</label>
+        </div>
+        <button class="btn primario largo" id="salvar">Salvar na loja</button>
+        <p class="dica">Aparece no site em até ~5 minutos (tempo da planilha publicada).</p>
+      </form>
+    </main>
   </div>
 
   <div class="toast" id="toast" role="status"></div>
 
   <script src="js/config.js?v=202610282154"></script>
   <script src="js/data.js?v=202610282154"></script>
-  <script src="js/vendedor.js?v=202610282154"></script>
+  <script src="js/vendedor.js?v=202610301200"></script>
+  <script src="js/cadastro.js?v=202610301200"></script>
 </body>
 </html>

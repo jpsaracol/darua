@@ -13,12 +13,13 @@ Loja virtual de camisas de time com catálogo, controle de estoque por tamanho, 
 - Checkout com Pix (QR Code e copia e cola gerados no padrão BR Code do Banco Central) ou pagamento na entrega/retirada
 - Pedidos salvos na planilha por uma API em Google Apps Script, com baixa automática de estoque, preços recalculados no servidor e trava contra venda simultânea da mesma peça
 - Área do vendedor com senha: lista de pedidos, busca, filtros, mudança de status e devolução ao estoque no cancelamento
+- Cadastro de camisa por foto: a IA (Google Gemini, plano gratuito, com busca no Google) identifica time, temporada, tipo, cores e escreve a descrição; o vendedor confere, completa preço e estoque e a camisa vai direto para a planilha, com a foto salva no Google Drive
 - **Google Sheets como banco de dados:** o vendedor atualiza camisas, preços e estoque pela planilha (inclusive pelo celular) e o site atualiza sozinho
 - Layout responsivo para celular
 
 ## Tecnologias
 
-HTML, CSS e JavaScript puro (sem frameworks) · Google Sheets + Google Apps Script (API) · Pix BR Code · API ViaCEP · GitHub Pages
+HTML, CSS e JavaScript puro (sem frameworks) · Google Sheets + Google Apps Script (API) · Google Gemini (IA) · Pix BR Code · API ViaCEP · GitHub Pages
 
 ## Estrutura
 
@@ -30,6 +31,7 @@ js/config.js        configurações: planilha, API, Pix, frete, personalização
 js/data.js          leitura da planilha, cálculo de frete e carrinho
 js/loja.js          vitrine, detalhe do produto, carrinho, pagamento e envio do pedido
 js/vendedor.js      área do vendedor
+js/cadastro.js      cadastro de camisa por foto com IA
 apps-script/        API de pedidos (Google Apps Script) que roda dentro da planilha
 fotos/              fotos das camisas (nome do arquivo vai na coluna "foto" da planilha)
 darua_camisas.xlsx  modelo da planilha de camisas e estoque
