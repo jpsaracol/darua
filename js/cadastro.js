@@ -67,7 +67,7 @@
   $('#identificar').onclick = async () => {
     const btn = $('#identificar');
     btn.disabled = true;
-    btn.textContent = 'Identificando... (até 30s)';
+    btn.textContent = 'Identificando... (pode levar 1 min)';
     aviso('');
     try {
       const r = await DR.api('identificar', { senha: DRVendedor.senha(), imagem: foto.base64, mime: foto.mime });

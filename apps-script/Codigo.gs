@@ -311,29 +311,41 @@ function identificarCamisa(req) {
   if (!chave) throw new Error('Falta a chave do Gemini (GEMINI_KEY) nas propriedades do script.');
   if (!req.imagem || String(req.imagem).length > 4e6) throw new Error('Foto inválida ou grande demais.');
 
-  const corpo = function (comBusca) {
+  // pensar = false pede raciocínio curto (bem mais rápido); modelos que não aceitam a opção recebem o pedido sem ela
+  const corpo = function (comBusca, pensarPouco) {
     const b = { contents: [{ parts: [
       { text: PROMPT_CAMISA },
       { inline_data: { mime_type: req.mime || 'image/jpeg', data: req.imagem } }
     ] }] };
     if (comBusca) b.tools = [{ google_search: {} }];
+    if (pensarPouco) b.generationConfig = { thinkingConfig: { thinkingLevel: 'low' } };
     return b;
   };
 
   // Tenta os modelos em ordem. Modelo aposentado (404) ou cota grátis esgotada (429) passa para o próximo;
   // o primeiro que funcionar fica guardado para as próximas vezes.
-  let resp = null, ultimo = 0;
+  // "tentativas" registra modelo, código e tempo de cada chamada, para achar lentidão.
+  let resp = null, ultimo = 0, usado = '';
+  const tentativas = [];
+  const tentar = function (modelo, comBusca, pensarPouco) {
+    const t0 = Date.now();
+    const r = chamarGemini(modelo, chave, corpo(comBusca, pensarPouco));
+    tentativas.push(modelo + (comBusca ? '+busca' : '') + (pensarPouco ? '+rapido' : '') + ' ' + r.getResponseCode() + ' ' + Math.round((Date.now() - t0) / 1000) + 's');
+    return r;
+  };
   const modelos = modelosGemini(chave);
   for (let i = 0; i < modelos.length && !resp; i++) {
-    let r = chamarGemini(modelos[i], chave, corpo(true));
-    // se a busca do Google não estiver liberada para esse modelo/cota, tenta só com a foto
-    if (r.getResponseCode() === 400 || r.getResponseCode() === 429) r = chamarGemini(modelos[i], chave, corpo(false));
+    let r = tentar(modelos[i], true, true);
+    if (r.getResponseCode() === 400) r = tentar(modelos[i], true, false);           // modelo não aceita thinkingLevel
+    if (r.getResponseCode() === 400 || r.getResponseCode() === 429) r = tentar(modelos[i], false, false);   // sem busca
     ultimo = r.getResponseCode();
     if (ultimo === 200) {
       resp = r;
-      if (props.getProperty('GEMINI_MODELO_OK') !== modelos[i]) props.setProperty('GEMINI_MODELO_OK', modelos[i]);
+      usado = modelos[i];
+      if (props.getProperty('GEMINI_MODELO_OK') !== usado) props.setProperty('GEMINI_MODELO_OK', usado);
     }
   }
+  console.log('identificar: ' + tentativas.join(' | '));
   if (!resp && ultimo === 429) throw new Error('A IA atingiu o limite grátis por agora. Tente de novo mais tarde ou preencha à mão.');
   if (!resp) throw new Error('A IA não respondeu (erro ' + ultimo + '). Preencha à mão.');
 
@@ -358,7 +370,9 @@ function identificarCamisa(req) {
       descricao: texto(d.descricao, 400)
     },
     confianca: texto(d.confianca, 10),
-    observacao: texto(d.observacao, 200)
+    observacao: texto(d.observacao, 200),
+    modelo: usado,
+    tentativas: tentativas
   };
 }
 
