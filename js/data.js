@@ -2,8 +2,11 @@
    os pedidos vão para a planilha pela API (apps-script/Codigo.gs);
    as configurações vêm de js/config.js; o carrinho fica no navegador do cliente. */
 const DR = (() => {
-  const CART_KEY = 'darua_carrinho_v1';
-  const CACHE_KEY = 'darua_catalogo_cache_v1';
+  const config = DARUA_CONFIG;
+  // a demonstração fica no mesmo endereço (/darua/demo/), então guarda tudo com outro prefixo
+  const PREFIXO = config.demo ? 'darua_demo_' : 'darua_';
+  const CART_KEY = PREFIXO + 'carrinho_v1';
+  const CACHE_KEY = PREFIXO + 'catalogo_cache_v1';
 
   const TAMANHOS = ['P', 'M', 'G', 'GG', 'XGG'];
   const CATEGORIAS = ['Brasileirão', 'Europeu', 'Seleções', 'Retrô'];
@@ -17,8 +20,6 @@ const DR = (() => {
     AM: 'Norte', PA: 'Norte', AC: 'Norte', RO: 'Norte', RR: 'Norte', AP: 'Norte', TO: 'Norte'
   };
 
-  const config = DARUA_CONFIG;
-
   // ---------- utilidades ----------
   const brl = n => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -28,29 +29,49 @@ const DR = (() => {
   const precoFinal = p => (emPromo(p) ? p.precoPromo : p.preco);
   const totalEstoque = p => TAMANHOS.reduce((s, t) => s + (p.estoque[t] || 0), 0);
 
-  // Camisa desenhada em SVG, usada quando o produto ainda não tem foto
-  function camisaSVG(c1 = '#111111', c2 = '#ffffff', listras = false) {
-    const corpo = 'M140 70 L105 82 L50 130 L80 185 L115 165 L115 340 L285 340 L285 165 L320 185 L350 130 L295 82 L260 70 Q200 112 140 70Z';
-    let faixas = '';
-    if (listras) {
-      for (let x = 122; x < 290; x += 36) faixas += `<rect x='${x}' y='60' width='18' height='290' fill='${c2}'/>`;
-    }
+  // Camisa desenhada em SVG, usada quando o produto ainda não tem foto.
+  // padrao: 'lisa', 'listras' (verticais), 'aros' (horizontais), 'faixa' (diagonal) ou 'metade'
+  function camisaSVG(c1 = '#111111', c2 = '#ffffff', padrao = 'lisa') {
+    if (padrao === true) padrao = 'listras';
+    if (!padrao) padrao = 'lisa';
+    const corpo = 'M150 62 C130 66 112 72 98 80 L44 128 L78 190 L118 166 L120 330 C120 340 128 346 138 346 L262 346 C272 346 280 340 280 330 L282 166 L322 190 L356 128 L302 80 C288 72 270 66 250 62 Q200 104 150 62Z';
+    let desenho = '';
+    if (padrao === 'listras') for (let x = 60; x < 360; x += 44) desenho += `<rect x='${x}' y='40' width='22' height='320' fill='${c2}'/>`;
+    if (padrao === 'aros') for (let y = 96; y < 350; y += 46) desenho += `<rect x='30' y='${y}' width='340' height='23' fill='${c2}'/>`;
+    if (padrao === 'faixa') desenho = `<path d='M96 84 L150 66 L304 346 L246 346Z' fill='${c2}'/>`;
+    if (padrao === 'metade') desenho = `<rect x='200' y='40' width='170' height='320' fill='${c2}'/>`;
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'>
-      <rect width='400' height='400' fill='#efefec'/>
-      <defs><clipPath id='c'><path d='${corpo}'/></clipPath></defs>
+      <defs>
+        <radialGradient id='bg' cx='50%' cy='42%' r='70%'><stop offset='0' stop-color='#fafaf8'/><stop offset='1' stop-color='#e6e6e1'/></radialGradient>
+        <linearGradient id='luz' x1='0' x2='1'><stop offset='0' stop-color='#fff' stop-opacity='.22'/><stop offset='.45' stop-color='#fff' stop-opacity='0'/><stop offset='1' stop-color='#000' stop-opacity='.16'/></linearGradient>
+        <linearGradient id='base' y1='0' y2='1' x1='0' x2='0'><stop offset='.6' stop-color='#000' stop-opacity='0'/><stop offset='1' stop-color='#000' stop-opacity='.12'/></linearGradient>
+        <pattern id='trama' width='5' height='5' patternUnits='userSpaceOnUse' patternTransform='rotate(45)'><rect width='1.2' height='5' fill='#000' fill-opacity='.045'/></pattern>
+        <clipPath id='c'><path d='${corpo}'/></clipPath>
+        <filter id='sombra' x='-20%' y='-50%' width='140%' height='200%'><feGaussianBlur stdDeviation='7'/></filter>
+      </defs>
+      <rect width='400' height='400' fill='url(#bg)'/>
+      <ellipse cx='200' cy='356' rx='118' ry='9' fill='#000' opacity='.16' filter='url(#sombra)'/>
       <path d='${corpo}' fill='${c1}'/>
-      <g clip-path='url(#c)'>${faixas}</g>
-      <path d='M50 130 L62 121 L92 176 L80 185Z' fill='${c2}'/>
-      <path d='M350 130 L338 121 L308 176 L320 185Z' fill='${c2}'/>
-      <path d='M140 70 Q200 112 260 70 L249 64 Q200 98 151 64Z' fill='${c2}'/>
-      <path d='${corpo}' fill='none' stroke='rgba(0,0,0,.18)' stroke-width='3'/>
+      <g clip-path='url(#c)'>
+        ${desenho}
+        <path d='M44 128 L78 190 L84 177 L50 115Z M356 128 L322 190 L316 177 L350 115Z' fill='${c2}'/>
+        <rect width='400' height='400' fill='url(#trama)'/>
+        <path d='M150 210 C160 260 156 300 150 346 M262 190 C252 240 258 290 254 346' stroke='#000' stroke-opacity='.07' stroke-width='6' fill='none'/>
+        <rect width='400' height='400' fill='url(#luz)'/>
+        <rect width='400' height='400' fill='url(#base)'/>
+      </g>
+      <path d='M150 62 Q200 106 250 62 L240 56 Q200 92 160 56Z' fill='${c2}'/>
+      <path d='M160 56 Q200 70 240 56' stroke='#000' stroke-opacity='.25' stroke-width='3' fill='none'/>
+      <circle cx='244' cy='132' r='13' fill='${c2}' stroke='#000' stroke-opacity='.18' stroke-width='2'/>
+      <path d='M150 128 l8 7 l8 -7' stroke='${c2}' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/>
+      <path d='${corpo}' fill='none' stroke='#000' stroke-opacity='.2' stroke-width='2.5'/>
     </svg>`;
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
   function imagemDe(p) {
-    if (!p.foto) return camisaSVG(p.cores[0], p.cores[1], p.listras);
-    return /^https?:\/\//i.test(p.foto) ? p.foto : 'fotos/' + p.foto;
+    if (!p.foto) return camisaSVG(p.cores[0], p.cores[1], p.padrao);
+    return /^(https?:\/\/|data:)/i.test(p.foto) ? p.foto : 'fotos/' + p.foto;
   }
 
   // ---------- leitura da planilha ----------
@@ -103,6 +124,8 @@ const DR = (() => {
         foto: v(l, 'foto'),
         cores: [v(l, 'cor1') || '#111111', v(l, 'cor2') || '#ffffff'],
         listras: sim(v(l, 'listras')),
+        // coluna "listras": SIM = listras verticais; também aceita FAIXA, AROS ou METADE
+        padrao: ({ sim: 'listras', faixa: 'faixa', aros: 'aros', metade: 'metade' })[normalizar(v(l, 'listras'))] || 'lisa',
         descricao: v(l, 'descricao'),
         estoque: Object.fromEntries(TAMANHOS.map(t => [t, Math.max(0, parseInt(v(l, t), 10) || 0)])),
         ativo: v(l, 'ativo') === '' || sim(v(l, 'ativo')),
@@ -133,7 +156,7 @@ const DR = (() => {
   }
 
   // ---------- pedidos feitos neste aparelho (para "Meus pedidos") ----------
-  const PEDIDOS_KEY = 'darua_meus_pedidos_v1';
+  const PEDIDOS_KEY = PREFIXO + 'meus_pedidos_v1';
   function meusPedidos() {
     try { return JSON.parse(localStorage.getItem(PEDIDOS_KEY)) || []; } catch (e) { return []; }
   }

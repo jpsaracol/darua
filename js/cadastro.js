@@ -79,7 +79,8 @@
       if (c.cor2) form.cor2.value = c.cor2;
       form.listras.checked = c.listras === 'SIM';
       const duvida = r.confianca !== 'alta' || r.observacao;
-      aviso(duvida
+      if (r.demo) aviso('ℹ️ ' + r.observacao, 'duvida');
+      else aviso(duvida
         ? `⚠️ A IA ficou em dúvida${r.observacao ? ': ' + r.observacao : '.'} Confira com atenção.`
         : '✓ Camisa identificada. Confira os dados e complete preço e estoque.', duvida ? 'duvida' : 'ok');
       form.preco.focus();

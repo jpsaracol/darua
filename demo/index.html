@@ -1,0 +1,105 @@
+<!doctype html>
+<!-- Gerado por ferramentas/gerar-demo.py a partir de ../index.html: não edite aqui. -->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DA RUA — Camisas de Time (demonstração)</title>
+  <meta name="description" content="DA RUA: camisas de time nacionais, europeias, seleções e retrô. Do P ao XGG, com personalização e entrega para todo o Brasil.">
+  <link rel="icon" href="../logodarua.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css?v=202611010308">
+</head>
+<body>
+  <header class="topo">
+    <div class="wrap topo-in">
+      <a href="index.html" class="logo"><img src="../logodarua.png" alt="DA RUA"></a>
+      <div class="busca"><input id="busca" type="search" placeholder="Buscar time, seleção ou temporada..." aria-label="Buscar"></div>
+      <button class="btn-pedidos" id="abrirPedidos">Meus pedidos</button>
+      <button class="btn-carrinho" id="abrirCarrinho" aria-label="Abrir carrinho">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+        <span id="qtdCarrinho">0</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="wrap">
+      <h1>Manto é<br><span>coisa séria.</span></h1>
+      <p>Camisas de time nacionais, europeias, seleções e retrô. Do P ao XGG, com personalização e entrega para todo o Brasil.</p>
+    </div>
+  </section>
+  <div class="faixa" id="faixa"></div>
+
+  <main class="wrap">
+    <div class="filtros">
+      <div class="chips" id="filtroCategoria"></div>
+      <div class="filtros-dir">
+        <select id="filtroTamanho" aria-label="Filtrar por tamanho"></select>
+        <select id="ordenar" aria-label="Ordenar">
+          <option value="destaque">Destaques</option>
+          <option value="menor">Menor preço</option>
+          <option value="maior">Maior preço</option>
+          <option value="novos">Novidades</option>
+        </select>
+      </div>
+    </div>
+    <div class="grade" id="grade"></div>
+    <p class="vazio" id="vazio" hidden>Nenhuma camisa encontrada com esses filtros.</p>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <img src="../logodarua.png" alt="DA RUA">
+      <span>© <span id="ano"></span> DA RUA — Camisas de time</span>
+      <nav class="rodape-links" aria-label="Políticas da loja">
+        <a id="contato" target="_blank" rel="noopener" hidden>Fale conosco no WhatsApp</a>
+        <a href="politicas.html#termos">Termos de uso</a>
+        <a href="politicas.html#trocas">Trocas e devoluções</a>
+        <a href="politicas.html#privacidade">Privacidade</a>
+      </nav>
+    </div>
+    <div class="wrap rodape-empresa" id="rodapeEmpresa" hidden></div>
+  </footer>
+
+  <!-- Detalhe do produto -->
+  <div class="overlay" id="modalProduto" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="fechar" data-fechar aria-label="Fechar">×</button>
+      <div class="modal-corpo" id="produtoCorpo"></div>
+    </div>
+  </div>
+
+  <!-- Carrinho -->
+  <div class="gaveta-fundo" id="carrinhoFundo" hidden></div>
+  <aside class="gaveta" id="carrinho" hidden aria-label="Carrinho">
+    <div class="gaveta-topo">
+      <h3>Seu carrinho</h3>
+      <button class="fechar" id="fecharCarrinho" aria-label="Fechar">×</button>
+    </div>
+    <div class="gaveta-corpo" id="carrinhoCorpo"></div>
+    <div class="gaveta-rodape" id="carrinhoRodape"></div>
+  </aside>
+
+  <!-- Meus pedidos -->
+  <div class="gaveta-fundo" id="pedidosFundo" hidden></div>
+  <aside class="gaveta" id="pedidosGaveta" hidden aria-label="Meus pedidos">
+    <div class="gaveta-topo">
+      <h3>Meus pedidos</h3>
+      <button class="fechar" id="fecharPedidos" aria-label="Fechar">×</button>
+    </div>
+    <div class="gaveta-corpo" id="pedidosCorpo"></div>
+  </aside>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="config.js?v=202611010308"></script>
+  <script src="../js/data.js?v=202611010308"></script>
+  <script src="demo.js?v=202611010308"></script>
+  <script src="../js/loja.js?v=202611010308"></script>
+</body>
+</html>

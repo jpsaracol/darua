@@ -381,3 +381,8 @@ tr:last-child td { border-bottom: 0; }
 .politicas ul { padding-left: 20px; }
 .politicas a { color: var(--texto); }
 .pol-data { color: var(--suave); font-size: 13px; margin: 0; }
+
+/* ---------- faixa da loja de demonstração (demo/) ---------- */
+.demo-faixa { background: #2b2bff; color: #fff; font-size: 13px; text-align: center; padding: 8px 16px; line-height: 1.5; }
+.demo-faixa a, .demo-faixa button { color: #fff; text-decoration: underline; background: none; border: 0; padding: 0; font-size: 13px; cursor: pointer; }
+.demo-faixa code { background: rgba(255,255,255,.18); padding: 1px 6px; border-radius: 4px; font-weight: 700; }

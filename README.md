@@ -4,6 +4,8 @@ Loja virtual de camisas de time com catálogo, controle de estoque por tamanho, 
 
 **Site:** https://jpsaracol.github.io/darua/
 
+**Demonstração (portfólio):** https://jpsaracol.github.io/darua/demo/ — área do vendedor com a senha `demo123`; os pedidos ficam só no navegador de quem testa
+
 ## Funcionalidades
 
 - Catálogo com filtros por categoria (Brasileirão, Europeu, Seleções, Retrô), tamanho, busca e ordenação
@@ -33,6 +35,8 @@ js/loja.js          vitrine, detalhe do produto, carrinho, pagamento e envio do 
 js/vendedor.js      área do vendedor
 js/cadastro.js      cadastro de camisa por foto com IA
 apps-script/        API de pedidos (Google Apps Script) que roda dentro da planilha
+demo/               loja de demonstração (gerada por ferramentas/gerar-demo.py + demo/demo.js)
+ferramentas/        scripts de apoio
 fotos/              fotos das camisas (nome do arquivo vai na coluna "foto" da planilha)
 darua_camisas.xlsx  modelo da planilha de camisas e estoque
 ```

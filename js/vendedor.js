@@ -3,7 +3,7 @@
   const $ = (s, el = document) => el.querySelector(s);
   const { brl, esc } = DR;
   const STATUS = ['Aguardando Pix', 'Novo', 'Pago', 'Enviado', 'Entregue', 'Cancelado'];
-  const CHAVE = 'darua_vendedor';
+  const CHAVE = DR.config.demo ? 'darua_demo_vendedor' : 'darua_vendedor';
 
   let senha = '';
   let pedidos = [];
