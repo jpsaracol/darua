@@ -13,6 +13,17 @@ const DARUA_CONFIG = {
     cidade: 'VERANOPOLIS'      // cidade de quem recebe (até 15 letras, sem acento)
   },
   pagamentoNaEntrega: true,    // vale só para retirada e entrega na mesma cidade
+  pixPrazoHoras: 24,           // pedido Pix não pago nesse prazo é cancelado (igual ao PIX_PRAZO_HORAS do Apps Script)
+
+  // ---------- dados da loja (obrigatórios por lei em loja online: aparecem no rodapé e nas políticas) ----------
+  empresa: {
+    nome: '',                  // razão social do MEI/empresa, ex.: 'JOAO PEDRO SARACOL 12345678000190'
+    documento: '',             // CNPJ (ou CPF, se ainda não tiver MEI)
+    endereco: '',              // endereço físico, ex.: 'Rua X, 123 — Centro, Veranópolis/RS'
+    email: ''                  // e-mail de atendimento
+  },
+  trocaTamanhoDias: 30,        // prazo para troca de tamanho (política da loja; o arrependimento de 7 dias é lei)
+  politicasAtualizadas: '01/11/2026',
 
   // WhatsApp de contato (botão "Fale conosco"): 55 + DDD + número, só dígitos
   whatsapp: '5553981103937',

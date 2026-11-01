@@ -7,6 +7,7 @@
 const SENHA = 'TROQUE_ESTA_SENHA';
 
 const PERSONALIZACAO_PRECO = 30;   // igual ao js/config.js do site
+const PIX_PRAZO_HORAS = 24;        // igual ao js/config.js: pedido Pix não pago nesse prazo é cancelado e o estoque volta
 const TAMANHOS = ['P', 'M', 'G', 'GG', 'XGG'];
 const CATEGORIAS = ['Brasileirão', 'Europeu', 'Seleções', 'Retrô'];
 const TIPOS = ['Torcedor', 'Jogador', 'Retrô', 'Treino'];
@@ -138,6 +139,7 @@ function criarPedido(req) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);   // dois pedidos ao mesmo tempo não vendem a mesma camisa
   try {
+    cancelarPixVencidos();   // libera as camisas de Pix vencido antes de conferir o estoque
     const c = lerCamisas();
     const precisa = {};
     const itens = [];
@@ -200,6 +202,7 @@ function criarPedido(req) {
 // O cliente prova que o pedido é dele informando o WhatsApp usado na compra.
 // Recebe { consultas: [{ numero, telefone }] } e devolve só os pedidos que conferem.
 function acompanharPedidos(req) {
+  comTrava(cancelarPixVencidos);
   const consultas = Array.isArray(req.consultas) ? req.consultas.slice(0, 20) : [];
   const v = abaPedidos().getDataRange().getValues();
   const col = {};
@@ -239,6 +242,7 @@ function telefoneConfere(salvo, informado) {
 // ---------------- página do vendedor ----------------
 function listarPedidos(req) {
   conferirSenha(req);
+  comTrava(cancelarPixVencidos);
   const sh = abaPedidos();
   const v = sh.getDataRange().getValues();
   const cab = v[0];
@@ -458,4 +462,49 @@ function autorizar() {
     }
   }
   Logger.log('Nenhum modelo funcionou. Confira se a chave GEMINI_KEY está certa.');
+}
+
+// ---------------- cancelamento automático do Pix não pago ----------------
+function comTrava(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+
+// Cancela pedidos "Aguardando Pix" com mais de PIX_PRAZO_HORAS e devolve as camisas ao estoque.
+// Quem chama precisa estar com a trava (criarPedido já está; os outros usam comTrava).
+// Se o cliente pagar depois, é só o vendedor mudar para "Pago": o estoque é descontado de novo.
+function cancelarPixVencidos() {
+  const sh = abaPedidos();
+  const v = sh.getDataRange().getValues();
+  const col = {};
+  v[0].forEach(function (c, i) { col[c] = i; });
+  const limite = Date.now() - PIX_PRAZO_HORAS * 3600 * 1000;
+  let n = 0;
+  for (let i = 1; i < v.length; i++) {
+    if (v[i][col.status] !== 'Aguardando Pix') continue;
+    const data = new Date(v[i][col.data]).getTime();
+    if (!(data < limite)) continue;
+    let itens = [];
+    try { itens = JSON.parse(v[i][col.itens_json] || '[]'); } catch (e) { }
+    movimentarEstoque(itens, +1);
+    sh.getRange(i + 1, col.status + 1).setValue('Cancelado');
+    n++;
+  }
+  return n;
+}
+
+// Roda de hora em hora pelo gatilho (veja instalarGatilho), para o estoque voltar mesmo sem ninguém mexer no site
+function cancelarPixVencidosAgendado() {
+  const n = comTrava(cancelarPixVencidos);
+  if (n) console.log(n + ' pedido(s) Pix vencido(s) cancelado(s).');
+}
+
+// Rode UMA vez pelo editor (▶ Executar) para criar o gatilho de hora em hora
+function instalarGatilho() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'cancelarPixVencidosAgendado') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('cancelarPixVencidosAgendado').timeBased().everyHours(1).create();
+  Logger.log('Pronto: pedidos Pix não pagos em ' + PIX_PRAZO_HORAS + 'h serão cancelados automaticamente.');
 }

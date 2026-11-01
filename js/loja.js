@@ -230,6 +230,7 @@
         <textarea class="pix-codigo" id="pixCodigo" readonly rows="4">${esc(codigo)}</textarea>
         <button class="btn primario largo" id="copiarPix">Copiar código Pix</button>
         <p class="cep-info">Recebedor: ${esc(DR.config.pix.nome)}. Assim que o pagamento for confirmado, separamos seu pedido e entramos em contato pelo telefone informado.</p>
+        <p class="cep-info"><b>Pague em até ${DR.config.pixPrazoHoras} horas.</b> Depois disso o pedido é cancelado automaticamente e as camisas voltam para a loja.</p>
       </div>`;
       $('#copiarPix').onclick = () => copiar(codigo, $('#pixCodigo'));
     } else {
@@ -335,6 +336,7 @@
       <div class="linha-total"><span>Subtotal</span><span>${brl(subtotal)}</span></div>
       <div class="linha-total"><span>Frete</span><span>${frete ? (frete.valor === 0 ? 'Grátis' : brl(frete.valor)) : 'Informe o CEP'}</span></div>
       <div class="linha-total grande"><span>Total</span><span>${brl(subtotal + (frete?.valor || 0))}</span></div>
+      <p class="aceite">Ao finalizar, você concorda com os <a href="politicas.html#termos" target="_blank">Termos de uso</a>, a <a href="politicas.html#trocas" target="_blank">política de trocas</a> e a <a href="politicas.html#privacidade" target="_blank">Política de privacidade</a>.</p>
       <button class="btn verde largo" id="finalizar" ${enviando ? 'disabled' : ''}>${enviando ? 'Enviando pedido...' : 'Finalizar pedido'}</button>`;
 
     // eventos do carrinho
@@ -453,6 +455,9 @@
   }
   const PASSO = { 'Aguardando Pix': 0, Novo: 0, Pago: 1, Enviado: 2, Entregue: 3 };
 
+  const prazoPix = data => new Date(new Date(data).getTime() + DR.config.pixPrazoHoras * 3600 * 1000)
+    .toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
   function cartaoPedido(p) {
     const cancelado = p.status === 'Cancelado';
     const passo = PASSO[p.status] ?? 0;
@@ -463,7 +468,7 @@
         ? '<p class="erro">Pedido cancelado. Em caso de dúvida, fale conosco.</p>'
         : `<ol class="linha-tempo">${etapasDo(p).map((e, i) =>
             `<li class="${i < passo ? 'feito' : i === passo ? 'atual' : ''}">${e}</li>`).join('')}</ol>`}
-      ${p.status === 'Aguardando Pix' ? '<p class="cep-info">Aguardando a confirmação do seu Pix.</p>' : ''}
+      ${p.status === 'Aguardando Pix' ? `<p class="cep-info">Aguardando a confirmação do seu Pix.${p.data ? ` Pague até <b>${prazoPix(p.data)}</b> ou o pedido é cancelado.` : ''}</p>` : ''}
       <ul class="mp-itens">${p.itens.map(i => `<li>${i.qtd}x ${esc(i.nome)} — ${esc(i.t)}${i.perso ? ` · ${esc([i.perso.nome, i.perso.num].filter(Boolean).join(' '))}` : ''}</li>`).join('')}</ul>
       <div class="linha-total"><span>${esc(p.pagamento)} · ${esc(p.frete_tipo)}</span><b>${brl(p.total)}</b></div>
       ${p.status === 'Aguardando Pix' ? `<button class="btn primario largo" data-pagar="${p.numero}">Pagar com Pix</button><div class="mp-pix" hidden></div>` : ''}
@@ -582,6 +587,12 @@
   }
 
   $('#ano').textContent = new Date().getFullYear();
+  const emp = DR.config.empresa || {};
+  const dadosLoja = [emp.nome, emp.documento && ((emp.documento.replace(/\D/g, '').length > 11 ? 'CNPJ ' : 'CPF ') + emp.documento), emp.endereco, emp.email].filter(Boolean);
+  if (dadosLoja.length) {
+    $('#rodapeEmpresa').textContent = dadosLoja.join(' · ');
+    $('#rodapeEmpresa').hidden = false;
+  }
   if (DR.config.whatsapp) {
     $('#contato').href = `https://wa.me/${DR.config.whatsapp.replace(/\D/g, '')}`;
     $('#contato').hidden = false;
