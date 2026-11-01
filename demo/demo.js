@@ -2,29 +2,38 @@
    Substitui a planilha e a API do Google por dados guardados no navegador de quem está testando:
    nenhum pedido chega à loja real e nada é cobrado. Carregado depois de js/data.js. */
 (() => {
-  const ESTADO_KEY = 'darua_demo_estado_v2';
+  const ESTADO_KEY = 'darua_demo_estado_v3';
   const SENHA_DEMO = 'demo123';
   const CONTA_DEMO = { email: 'cliente@demo.com', senha: 'demo123' };
   const CODIGO_DEMO = '123456';
   const espera = ms => new Promise(r => setTimeout(r, ms));
 
   const desc = (time, extra) => `Camisa ${time} com ${extra}. Ilustração do modelo; na loja real entra a foto da peça.`;
+  // as 4 primeiras têm foto real (demo/fotos/, cedidas pelo fornecedor); as outras usam a ilustração
   const BASE = [
-    ['gremio-2026-home', 'Grêmio 2026 Home', 'Grêmio', 'Brasileirão', '2026', 'Torcedor', 399.9, 0, '#0d80bf', '#111111', 'listras', 'listras tricolores em azul, preto e branco', [3, 6, 5, 2, 1], true],
-    ['inter-2026-home', 'Internacional 2026 Home', 'Internacional', 'Brasileirão', '2026', 'Torcedor', 449.9, 399.9, '#d10a11', '#ffffff', 'lisa', 'vermelho tradicional e detalhes brancos na gola e nas mangas', [2, 5, 6, 3, 0], true],
-    ['brasil-2026-home', 'Brasil 2026 Home', 'Seleção Brasileira', 'Seleções', '2026', 'Torcedor', 449.9, 0, '#ffd700', '#009c3b', 'lisa', 'o amarelo clássico e acabamento verde, temporada de Copa do Mundo', [4, 8, 8, 5, 2], true],
-    ['flamengo-2026-home', 'Flamengo 2026 Home', 'Flamengo', 'Brasileirão', '2026', 'Torcedor', 449.9, 0, '#c4161c', '#111111', 'aros', 'faixas horizontais rubro-negras', [0, 4, 6, 3, 1], true],
+    ['gremio-26-third', 'Grêmio III 26/27 Tríplice Coroa', 'Grêmio', 'Brasileirão', '26/27', 'Torcedor', 399.9, 0, '#1f6fd1', '#ffffff', 'lisa',
+      'Terceira camisa do Grêmio para 2026/27, em homenagem aos 30 anos da Tríplice Coroa de 1996. Azul com listras verticais discretas, gola polo branca com acabamento dourado e detalhes dourados no escudo e na marca.', [1, 4, 5, 3, 1], true, 'gremio.jpg'],
+    ['inter-milao-2004-retro', 'Inter de Milão 2004/05 Retrô', 'Inter de Milão', 'Retrô', '2004/05', 'Retrô', 279.9, 0, '#1b2a6b', '#5fa8e0', 'aros',
+      'Releitura da terceira camisa da Inter de Milão na temporada 2004/05: faixas horizontais em azul-marinho e azul-celeste, com o patrocínio Pirelli em amarelo.', [0, 2, 3, 2, 1], true, 'inter-milao.jpg'],
+    ['internacional-26-away', 'Internacional II 26/27', 'Internacional', 'Brasileirão', '26/27', 'Torcedor', 449.9, 399.9, '#ffffff', '#b8962e', 'lisa',
+      'Camisa branca do Internacional com gola polo, as três listras em dourado nos ombros e o escudo em vermelho no peito.', [2, 5, 6, 3, 1], true, 'internacional.jpg'],
+    ['nacional-uru-home', 'Nacional (URU) Home', 'Nacional', 'Sul-Americano', '2026', 'Torcedor', 349.9, 0, '#ffffff', '#1b2a6b', 'lisa',
+      'Camisa titular do Nacional, do Uruguai: branca, com detalhes em azul-marinho e vermelho na gola, nos ombros e nas mangas.', [1, 3, 3, 2, 0], true, 'nacional.jpg'],
+    ['gremio-2026-home', 'Grêmio 2026 Home', 'Grêmio', 'Brasileirão', '2026', 'Torcedor', 399.9, 0, '#0d80bf', '#111111', 'listras', 'listras tricolores em azul, preto e branco', [3, 6, 5, 2, 1], false],
+    ['inter-2026-home', 'Internacional 2026 Home', 'Internacional', 'Brasileirão', '2026', 'Torcedor', 449.9, 399.9, '#d10a11', '#ffffff', 'lisa', 'vermelho tradicional e detalhes brancos na gola e nas mangas', [2, 5, 6, 3, 0], false],
+    ['brasil-2026-home', 'Brasil 2026 Home', 'Seleção Brasileira', 'Seleções', '2026', 'Torcedor', 449.9, 0, '#ffd700', '#009c3b', 'lisa', 'o amarelo clássico e acabamento verde, temporada de Copa do Mundo', [4, 8, 8, 5, 2], false],
+    ['flamengo-2026-home', 'Flamengo 2026 Home', 'Flamengo', 'Brasileirão', '2026', 'Torcedor', 449.9, 0, '#c4161c', '#111111', 'aros', 'faixas horizontais rubro-negras', [0, 4, 6, 3, 1], false],
     ['vasco-2026-away', 'Vasco 2026 Away', 'Vasco da Gama', 'Brasileirão', '2026', 'Torcedor', 399.9, 0, '#ffffff', '#111111', 'faixa', 'a tradicional faixa diagonal preta sobre o branco', [1, 3, 2, 1, 0], false],
     ['palmeiras-2026-home', 'Palmeiras 2026 Home', 'Palmeiras', 'Brasileirão', '2026', 'Torcedor', 449.9, 0, '#006437', '#ffffff', 'lisa', 'verde intenso e gola branca', [2, 5, 5, 2, 1], false],
-    ['barcelona-26-home', 'Barcelona 26/27 Home', 'Barcelona', 'Europeu', '26/27', 'Torcedor', 499.9, 0, '#1b2a6b', '#a50044', 'listras', 'listras azul-grená', [2, 4, 4, 2, 0], true],
+    ['barcelona-26-home', 'Barcelona 26/27 Home', 'Barcelona', 'Europeu', '26/27', 'Torcedor', 499.9, 0, '#1b2a6b', '#a50044', 'listras', 'listras azul-grená', [2, 4, 4, 2, 0], false],
     ['celtic-26-home', 'Celtic 26/27 Home', 'Celtic', 'Europeu', '26/27', 'Torcedor', 449.9, 0, '#ffffff', '#00843d', 'aros', 'os aros horizontais verdes e brancos', [1, 2, 3, 1, 0], false],
     ['argentina-2026-home', 'Argentina 2026 Home', 'Seleção Argentina', 'Seleções', '2026', 'Torcedor', 449.9, 399.9, '#75aadb', '#ffffff', 'listras', 'listras celestes e brancas', [2, 3, 4, 2, 1], false],
     ['portugal-2026-home', 'Portugal 2026 Home', 'Seleção Portuguesa', 'Seleções', '2026', 'Torcedor', 449.9, 0, '#b40d1e', '#046a38', 'metade', 'vermelho e verde divididos ao meio', [1, 2, 2, 1, 0], false],
-    ['gremio-1983-retro', 'Grêmio 1983 Retrô', 'Grêmio', 'Retrô', '1983', 'Retrô', 219.9, 0, '#0d80bf', '#111111', 'listras', 'o visual da temporada do título mundial de 1983', [0, 2, 3, 1, 0], true],
+    ['gremio-1983-retro', 'Grêmio 1983 Retrô', 'Grêmio', 'Retrô', '1983', 'Retrô', 219.9, 0, '#0d80bf', '#111111', 'listras', 'o visual da temporada do título mundial de 1983', [0, 2, 3, 1, 0], false],
     ['brasil-1970-retro', 'Brasil 1970 Retrô', 'Seleção Brasileira', 'Retrô', '1970', 'Retrô', 199.9, 0, '#ffd700', '#009c3b', 'lisa', 'gola redonda verde no estilo dos anos 70', [1, 3, 3, 2, 1], false]
-  ].map(([id, nome, time, categoria, temporada, tipo, preco, precoPromo, c1, c2, padrao, extra, est, destaque], ordem) => ({
-    id, nome, time, categoria, temporada, tipo, preco, precoPromo, foto: '', cores: [c1, c2],
-    listras: padrao === 'listras', padrao, descricao: desc(time, extra),
+  ].map(([id, nome, time, categoria, temporada, tipo, preco, precoPromo, c1, c2, padrao, extra, est, destaque, foto], ordem) => ({
+    id, nome, time, categoria, temporada, tipo, preco, precoPromo, foto: foto || '', cores: [c1, c2],
+    listras: padrao === 'listras', padrao, descricao: foto ? extra : desc(time, extra),
     estoque: Object.fromEntries(DR.TAMANHOS.map((t, i) => [t, est[i]])), ativo: true, destaque, ordem
   }));
 
@@ -247,9 +256,9 @@
       return {
         ok: true,
         camisa: {
-          nome: 'Botafogo 2026 Home', time: 'Botafogo', temporada: '2026', categoria: 'Brasileirão', tipo: 'Torcedor',
-          cor1: '#111111', cor2: '#ffffff', listras: 'SIM',
-          descricao: 'Camisa Botafogo com listras verticais pretas e brancas e gola redonda. Temporada 2026.'
+          nome: 'Nacional (URU) Home', time: 'Nacional', temporada: '2026', categoria: 'Sul-Americano', tipo: 'Torcedor',
+          cor1: '#ffffff', cor2: '#1b2a6b', listras: 'NAO',
+          descricao: 'Camisa titular do Nacional, do Uruguai: branca, com detalhes em azul-marinho e vermelho na gola, nos ombros e nas mangas.'
         },
         confianca: 'alta',
         demo: true,

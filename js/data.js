@@ -9,7 +9,7 @@ const DR = (() => {
   const CACHE_KEY = PREFIXO + 'catalogo_cache_v1';
 
   const TAMANHOS = ['P', 'M', 'G', 'GG', 'XGG'];
-  const CATEGORIAS = ['Brasileirão', 'Europeu', 'Seleções', 'Retrô'];
+  const CATEGORIAS = ['Brasileirão', 'Sul-Americano', 'Europeu', 'Seleções', 'Retrô'];
 
   const UF_REGIAO = {
     RS: 'Sul', SC: 'Sul', PR: 'Sul',

@@ -9,7 +9,7 @@ const SENHA = 'TROQUE_ESTA_SENHA';
 const PERSONALIZACAO_PRECO = 30;   // igual ao js/config.js do site
 const PIX_PRAZO_HORAS = 24;        // igual ao js/config.js: pedido Pix não pago nesse prazo é cancelado e o estoque volta
 const TAMANHOS = ['P', 'M', 'G', 'GG', 'XGG'];
-const CATEGORIAS = ['Brasileirão', 'Europeu', 'Seleções', 'Retrô'];
+const CATEGORIAS = ['Brasileirão', 'Sul-Americano', 'Europeu', 'Seleções', 'Retrô'];
 const TIPOS = ['Torcedor', 'Jogador', 'Retrô', 'Treino'];
 const PASTA_FOTOS = 'DA RUA - fotos';
 // Modelos do Gemini, do preferido ao reserva (o Flash-Lite tem mais cota grátis por dia).
@@ -307,7 +307,7 @@ const PROMPT_CAMISA = [
   '  "confianca": "alta, media ou baixa",',
   '  "observacao": "se houver dúvida (ex.: duas temporadas parecidas), explique em uma frase; senão vazio"',
   '}',
-  'Regras: Brasileirão = clubes brasileiros; Europeu = clubes de fora do Brasil; Seleções = seleções nacionais; Retrô = camisas de temporadas antigas (antes de 2015).',
+  'Regras: Brasileirão = clubes brasileiros; Sul-Americano = clubes da América do Sul fora do Brasil; Europeu = clubes da Europa e do resto do mundo; Seleções = seleções nacionais; Retrô = camisas de temporadas antigas (antes de 2015).',
   'Na descrição, não diga que a camisa é oficial, original ou licenciada, não cite preço e não invente tecnologia de tecido.',
   'Se a foto não for de uma camisa de time, responda {"erro": "explique o motivo"}.'
 ].join('\n');
