@@ -62,7 +62,9 @@ function doPost(e) {
     const req = JSON.parse(e.postData.contents);
     const rotas = {
       pedido: criarPedido, acompanhar: acompanharPedidos, listar: listarPedidos, status: mudarStatus,
-      identificar: identificarCamisa, cadastrar: cadastrarCamisa
+      identificar: identificarCamisa, cadastrar: cadastrarCamisa,
+      criarConta: criarConta, entrar: entrarConta, conta: verConta, salvarEndereco: salvarEndereco,
+      excluirConta: excluirConta, recuperar: recuperarSenha, redefinir: redefinirSenha
     };
     if (!rotas[req.acao]) throw new Error('Ação inválida.');
     resp = rotas[req.acao](req);
@@ -129,6 +131,8 @@ function movimentarEstoque(itens, sinal) {
 // ---------------- pedido novo (vem do site) ----------------
 function criarPedido(req) {
   const cli = req.cliente || {};
+  // cliente logado: o pedido fica ligado ao e-mail da conta
+  if (req.conta) { try { cli.email = clienteDoToken(req.conta).email; } catch (e) { } }
   const nome = texto(cli.nome, 80);
   const telefone = texto(cli.telefone, 20);
   if (!nome) throw new Error('Informe seu nome.');
@@ -507,4 +511,211 @@ function instalarGatilho() {
   });
   ScriptApp.newTrigger('cancelarPixVencidosAgendado').timeBased().everyHours(1).create();
   Logger.log('Pronto: pedidos Pix não pagos em ' + PIX_PRAZO_HORAS + 'h serão cancelados automaticamente.');
+}
+
+// ---------------- contas de cliente ----------------
+// Aba "clientes": a senha nunca é guardada, só o resultado do embaralhamento (hash SHA-256 com sal).
+// A sessão é um token assinado (id.validade.assinatura): não precisa ser guardado na planilha,
+// e trocar a senha invalida todas as sessões abertas.
+const ABA_CLIENTES = 'clientes';
+const CAB_CLIENTES = ['id', 'email', 'nome', 'telefone', 'senha_hash', 'sal', 'cep', 'endereco', 'cidade', 'uf', 'criado'];
+const SESSAO_DIAS = 30;
+
+function abaClientes() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(ABA_CLIENTES);
+  if (!sh) {
+    sh = ss.insertSheet(ABA_CLIENTES);
+    sh.appendRow(CAB_CLIENTES);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, CAB_CLIENTES.length).setFontWeight('bold').setBackground('#0b0b0b').setFontColor('#ffffff');
+  }
+  return sh;
+}
+
+function hex(bytes) {
+  return bytes.map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
+}
+
+function hashSenha(senha, sal) {
+  let h = sal + ':' + senha;
+  for (let i = 0; i < 300; i++) h = hex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, h, Utilities.Charset.UTF_8));
+  return h;
+}
+
+function segredo() {
+  const props = PropertiesService.getScriptProperties();
+  let s = props.getProperty('SEGREDO_SESSAO');
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); props.setProperty('SEGREDO_SESSAO', s); }
+  return s;
+}
+
+function assinar(texto) {
+  return hex(Utilities.computeHmacSha256Signature(texto, segredo())).slice(0, 32);
+}
+
+function lerClientes() {
+  const sh = abaClientes();
+  const v = sh.getDataRange().getValues();
+  const col = {};
+  v[0].forEach(function (c, i) { col[c] = i; });
+  return { sh: sh, v: v, col: col };
+}
+
+function acharCliente(c, campo, valor) {
+  for (let i = 1; i < c.v.length; i++) if (String(c.v[i][c.col[campo]]) === String(valor)) return i;
+  return -1;
+}
+
+function perfilDe(c, i) {
+  const r = c.v[i], col = c.col;
+  return {
+    nome: r[col.nome], email: r[col.email], telefone: String(r[col.telefone]),
+    cep: String(r[col.cep]), endereco: r[col.endereco], cidade: r[col.cidade], uf: r[col.uf]
+  };
+}
+
+function emitirToken(c, i) {
+  const id = c.v[i][c.col.id];
+  const validade = Date.now() + SESSAO_DIAS * 86400000;
+  const base = id + '.' + validade;
+  return base + '.' + assinar(base + '.' + c.v[i][c.col.senha_hash]);
+}
+
+// Confere o token e devolve { c, i, email }; erro se for inválido ou vencido
+function clienteDoToken(token) {
+  const partes = String(token || '').split('.');
+  if (partes.length !== 3 || Number(partes[1]) < Date.now()) throw new Error('Sua sessão expirou. Entre de novo.');
+  const c = lerClientes();
+  const i = acharCliente(c, 'id', partes[0]);
+  if (i < 0 || assinar(partes[0] + '.' + partes[1] + '.' + c.v[i][c.col.senha_hash]) !== partes[2]) throw new Error('Sua sessão expirou. Entre de novo.');
+  return { c: c, i: i, email: c.v[i][c.col.email] };
+}
+
+const emailValido = function (e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); };
+
+// no máximo 5 senhas erradas por e-mail a cada 15 minutos
+function conferirTentativas(email, errou) {
+  const cache = CacheService.getScriptCache();
+  const chave = 'tent_' + email;
+  const n = Number(cache.get(chave) || 0);
+  if (n >= 5) throw new Error('Muitas tentativas. Espere 15 minutos ou use "Esqueci minha senha".');
+  if (errou) cache.put(chave, String(n + 1), 900);
+}
+
+function criarConta(req) {
+  const email = texto(req.email, 80).toLowerCase();
+  const nome = texto(req.nome, 80);
+  const telefone = texto(req.telefone, 20);
+  const senha = String(req.senha || '');
+  if (!nome) throw new Error('Informe seu nome.');
+  if (!emailValido(email)) throw new Error('E-mail inválido.');
+  if (telefone.replace(/\D/g, '').length < 10) throw new Error('Informe um WhatsApp com DDD.');
+  if (senha.length < 6) throw new Error('A senha precisa ter pelo menos 6 caracteres.');
+  if (!req.aceite) throw new Error('Para criar a conta, aceite os Termos e a Política de privacidade.');
+  return comTrava(function () {
+    const c = lerClientes();
+    if (acharCliente(c, 'email', email) >= 0) throw new Error('Já existe uma conta com esse e-mail. Entre ou use "Esqueci minha senha".');
+    const sal = Utilities.getUuid();
+    c.sh.appendRow([Utilities.getUuid().slice(0, 8), email, nome, "'" + telefone, hashSenha(senha, sal), sal, '', '', '', '', new Date()]);
+    const novo = lerClientes();
+    const i = acharCliente(novo, 'email', email);
+    return { ok: true, token: emitirToken(novo, i), perfil: perfilDe(novo, i) };
+  });
+}
+
+function entrarConta(req) {
+  const email = texto(req.email, 80).toLowerCase();
+  conferirTentativas(email, false);
+  const c = lerClientes();
+  const i = acharCliente(c, 'email', email);
+  if (i < 0 || hashSenha(String(req.senha || ''), c.v[i][c.col.sal]) !== c.v[i][c.col.senha_hash]) {
+    conferirTentativas(email, true);
+    throw new Error('E-mail ou senha incorretos.');
+  }
+  return { ok: true, token: emitirToken(c, i), perfil: perfilDe(c, i) };
+}
+
+// Perfil + pedidos feitos com o e-mail da conta ou com o mesmo WhatsApp
+function verConta(req) {
+  const k = clienteDoToken(req.token);
+  const perfil = perfilDe(k.c, k.i);
+  comTrava(cancelarPixVencidos);
+  const v = abaPedidos().getDataRange().getValues();
+  const col = {};
+  v[0].forEach(function (c, i) { col[c] = i; });
+  const pedidos = [];
+  for (let i = v.length - 1; i >= 1; i--) {
+    const row = v[i];
+    const doEmail = String(row[col.email]).toLowerCase() === perfil.email;
+    if (!doEmail && !telefoneConfere(String(row[col.telefone]), perfil.telefone)) continue;
+    let itens = [];
+    try { itens = JSON.parse(row[col.itens_json]); } catch (e) { }
+    pedidos.push({
+      numero: num(row[col.numero]), data: row[col.data], status: row[col.status],
+      pagamento: row[col.pagamento], frete_tipo: row[col.frete_tipo], frete_valor: num(row[col.frete_valor]),
+      subtotal: num(row[col.subtotal]), total: num(row[col.total]),
+      itens: itens.map(function (it) { return { nome: it.nome, t: it.t, qtd: it.qtd, unit: it.unit, perso: it.perso }; })
+    });
+  }
+  return { ok: true, perfil: perfil, pedidos: pedidos };
+}
+
+function salvarEndereco(req) {
+  return comTrava(function () {
+    const k = clienteDoToken(req.token);
+    const linha = k.i + 1, col = k.c.col;
+    const campos = { nome: texto(req.nome, 80), telefone: texto(req.telefone, 20), cep: texto(req.cep, 9),
+      endereco: texto(req.endereco, 150), cidade: texto(req.cidade, 60), uf: texto(req.uf, 2) };
+    Object.keys(campos).forEach(function (c) {
+      if (!campos[c]) return;
+      k.c.sh.getRange(linha, col[c] + 1).setValue(c === 'telefone' || c === 'cep' ? "'" + campos[c] : campos[c]);
+    });
+    const c = lerClientes();
+    return { ok: true, perfil: perfilDe(c, acharCliente(c, 'email', k.email)) };
+  });
+}
+
+// LGPD: o cliente pode apagar a própria conta (os pedidos continuam, por obrigação legal e fiscal)
+function excluirConta(req) {
+  return comTrava(function () {
+    const k = clienteDoToken(req.token);
+    if (hashSenha(String(req.senha || ''), k.c.v[k.i][k.c.col.sal]) !== k.c.v[k.i][k.c.col.senha_hash]) throw new Error('Senha incorreta.');
+    k.c.sh.deleteRow(k.i + 1);
+    return { ok: true };
+  });
+}
+
+function recuperarSenha(req) {
+  const email = texto(req.email, 80).toLowerCase();
+  const c = lerClientes();
+  // mesma resposta exista ou não a conta, para não revelar quais e-mails estão cadastrados
+  if (acharCliente(c, 'email', email) >= 0) {
+    const codigo = String(Math.floor(100000 + Math.random() * 900000));
+    CacheService.getScriptCache().put('rec_' + email, codigo, 900);
+    MailApp.sendEmail(email, 'DA RUA — código para criar uma nova senha',
+      'Seu código é ' + codigo + '. Ele vale por 15 minutos.\n\nSe não foi você que pediu, ignore este e-mail.');
+  }
+  return { ok: true };
+}
+
+function redefinirSenha(req) {
+  const email = texto(req.email, 80).toLowerCase();
+  const cache = CacheService.getScriptCache();
+  conferirTentativas(email, false);
+  if (!req.codigo || cache.get('rec_' + email) !== String(req.codigo).trim()) {
+    conferirTentativas(email, true);
+    throw new Error('Código inválido ou vencido.');
+  }
+  if (String(req.senha || '').length < 6) throw new Error('A senha precisa ter pelo menos 6 caracteres.');
+  return comTrava(function () {
+    const c = lerClientes();
+    const i = acharCliente(c, 'email', email);
+    if (i < 0) throw new Error('Conta não encontrada.');
+    const sal = Utilities.getUuid();
+    c.sh.getRange(i + 1, c.col.senha_hash + 1, 1, 2).setValues([[hashSenha(req.senha, sal), sal]]);
+    cache.remove('rec_' + email);
+    const novo = lerClientes();
+    return { ok: true, token: emitirToken(novo, i), perfil: perfilDe(novo, i) };
+  });
 }

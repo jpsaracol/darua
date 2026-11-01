@@ -34,6 +34,9 @@ const DARUA_CONFIG = {
   personalizacaoAtiva: true,
   personalizacaoPreco: 30,
 
+  // Parcelamento mostrado na vitrine ("ou 3x de..."). Deixe 0 enquanto a loja não aceitar cartão parcelado no site.
+  parcelasSemJuros: 0,
+
   // Mostra "Restam só X" quando um tamanho tiver até essa quantidade
   estoqueBaixo: 2,
 

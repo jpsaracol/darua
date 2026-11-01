@@ -11,6 +11,7 @@
   let cliNome = '', cliTel = '', cliRua = '';   // mantém o que o cliente digitou entre redesenhos
   let pagamento = 'pix';
   let enviando = false;
+  let preenchidoDaConta = false;   // dados da conta entram no carrinho uma vez por compra
 
   let catalogo = [];   // vem da planilha do Google
   const db = () => ({ produtos: catalogo, config: DR.config });
@@ -25,8 +26,9 @@
 
   function precoHTML(p) {
     const final = DR.precoFinal(p);
+    const parc = DR.config.parcelasSemJuros || 0;   // só mostra parcelamento se a loja aceitar cartão parcelado
     return `${DR.emPromo(p) ? `<s>${brl(p.preco)}</s>` : ''}<b>${brl(final)}</b>
-      <span class="parcela">ou 3x de ${brl(final / 3)}</span>`;
+      ${parc > 1 ? `<span class="parcela">ou ${parc}x de ${brl(final / parc)} sem juros</span>` : ''}`;
   }
 
   // quanto ainda dá para colocar no carrinho daquele tamanho
@@ -257,6 +259,18 @@
     DR.saveCart(carrinho);
     atualizarContador();
 
+    const pf = DRConta.perfil();
+    if (pf && !preenchidoDaConta) {
+      preenchidoDaConta = true;
+      cliNome = cliNome || pf.nome;
+      cliTel = cliTel || pf.telefone;
+      if (!endereco && pf.cep && pf.cidade) {
+        endereco = { cep: pf.cep, localidade: pf.cidade, uf: pf.uf };
+        cliRua = cliRua || pf.endereco;
+        freteId = 'entrega';
+      }
+    }
+
     if (!L.length) {
       corpo.innerHTML = '<p class="vazio">Seu carrinho está vazio.</p>';
       rodape.innerHTML = '<button class="btn primario largo" id="continuar">Ver camisas</button>';
@@ -312,6 +326,7 @@
 
       <div class="bloco">
         <h4>Seus dados</h4>
+        ${pf ? `<p class="cep-info">Comprando como <b>${esc(pf.email)}</b></p>` : '<p class="cep-info">Tem conta? <button type="button" class="link" data-entrar>Entre</button> para preencher seus dados e acompanhar os pedidos.</p>'}
         <input type="text" id="cliNome" placeholder="Nome completo" autocomplete="name" value="${esc(cliNome)}">
         <input type="tel" id="cliTel" placeholder="WhatsApp com DDD" autocomplete="tel" inputmode="tel" value="${esc(cliTel)}">
       </div>
@@ -361,6 +376,7 @@
     const rua = $('#cliEndereco');
     if (rua) rua.oninput = e => { cliRua = e.target.value; };
     $('#finalizar').onclick = finalizar;
+    corpo.querySelector('[data-entrar]')?.addEventListener('click', () => { fecharCarrinho(); abrirPedidos(); });
   }
 
   function alterarQtd(key, delta) {
@@ -414,8 +430,10 @@
     renderCarrinho();
     try {
       // a API confere o estoque na planilha, recalcula os preços e dá baixa
+      const pf = DRConta.perfil();
       const r = await DR.api('pedido', {
-        cliente: { nome, telefone: tel },
+        conta: DRConta.token(),
+        cliente: { nome, telefone: tel, email: pf?.email || '' },
         pagamento,
         itens: L.map(l => ({ id: l.id, t: l.t, qtd: l.qtd, perso: l.perso })),
         frete: {
@@ -426,6 +444,11 @@
       });
       pedidoFeito = { numero: r.numero, total: r.total, pagamento, retirada: frete.id === 'retirada' };
       DR.guardarPedido(r.numero, tel);
+      if (pf) DRConta.lembrarEntrega({
+        nome, telefone: tel, cep: endereco?.cep || '', cidade: endereco?.localidade || '', uf: endereco?.uf || '',
+        endereco: frete.id === 'entrega' ? rua : ''
+      });
+      preenchidoDaConta = false;
       carrinho = [];
       DR.saveCart(carrinho);
       endereco = null;
@@ -477,17 +500,23 @@
 
   function renderPedidos(erro) {
     const corpo = $('#pedidosCorpo');
+    const logado = !!DRConta.perfil();
+    $('#tituloPedidos').textContent = logado ? 'Minha conta' : 'Entrar';
     corpo.innerHTML = `
+      <div id="contaBox"></div>
+      <h4 class="titulo-secao">${logado ? 'Seus pedidos' : 'Pedidos feitos neste aparelho'}</h4>
       ${carregandoPedidos ? '<p class="vazio">Carregando seus pedidos...</p>' : ''}
-      ${!carregandoPedidos && !acompanhados.length ? '<p class="vazio">Nenhum pedido feito neste aparelho ainda.</p>' : ''}
+      ${!carregandoPedidos && !acompanhados.length ? `<p class="vazio">${logado ? 'Você ainda não fez pedidos com esta conta.' : 'Nenhum pedido feito neste aparelho ainda.'}</p>` : ''}
       ${acompanhados.map(cartaoPedido).join('')}
       <form class="bloco" id="formConsulta">
-        <h4>Consultar outro pedido</h4>
+        <h4>${logado ? 'Consultar outro pedido' : 'Comprou sem conta? Consulte pelo número'}</h4>
         <input type="number" id="consNum" placeholder="Número do pedido (ex: 1001)" required>
         <input type="tel" id="consTel" placeholder="WhatsApp usado na compra" required>
         ${erro ? `<p class="erro">${esc(erro)}</p>` : ''}
         <button class="btn largo">Consultar</button>
       </form>`;
+
+    DRConta.render($('#contaBox'), recarregar => { atualizarBotaoConta(); recarregar ? abrirPedidos() : renderPedidos(); });
 
     corpo.querySelectorAll('[data-pagar]').forEach(b => b.onclick = () => {
       const p = acompanhados.find(x => String(x.numero) === b.dataset.pagar);
@@ -520,11 +549,18 @@
     $('#pedidosFundo').hidden = false;
     document.body.style.overflow = 'hidden';
     const consultas = DR.meusPedidos();
-    carregandoPedidos = consultas.length > 0;
+    const logado = !!DRConta.token();
+    carregandoPedidos = logado || consultas.length > 0;
+    if (!carregandoPedidos) acompanhados = [];   // ex.: acabou de sair da conta
     renderPedidos();
-    if (!consultas.length) return;
+    if (!carregandoPedidos) return;
     try {
-      acompanhados = (await DR.api('acompanhar', { consultas })).pedidos;
+      // logado: pedidos da conta + os feitos neste aparelho sem conta; sem login: só os do aparelho
+      const daConta = logado ? ((await DRConta.carregar())?.pedidos || []) : [];
+      const doAparelho = consultas.length ? (await DR.api('acompanhar', { consultas })).pedidos : [];
+      acompanhados = [...daConta, ...doAparelho.filter(p => !daConta.some(c => c.numero === p.numero))]
+        .sort((a, b) => b.numero - a.numero);
+      atualizarBotaoConta();
       carregandoPedidos = false;
       renderPedidos();
     } catch (e) {
@@ -585,6 +621,13 @@
     renderGrade();
     if (!$('#carrinho').hidden) renderCarrinho();
   }
+
+  function atualizarBotaoConta() {
+    const nome = DRConta.primeiroNome();
+    $('#abrirPedidos').textContent = nome ? `Olá, ${nome}` : 'Entrar';
+    $('#abrirPedidos').setAttribute('aria-label', nome ? 'Minha conta e pedidos' : 'Entrar ou acompanhar pedidos');
+  }
+  atualizarBotaoConta();
 
   $('#ano').textContent = new Date().getFullYear();
   const emp = DR.config.empresa || {};

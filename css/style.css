@@ -386,3 +386,23 @@ tr:last-child td { border-bottom: 0; }
 .demo-faixa { background: #2b2bff; color: #fff; font-size: 13px; text-align: center; padding: 8px 16px; line-height: 1.5; }
 .demo-faixa a, .demo-faixa button { color: #fff; text-decoration: underline; background: none; border: 0; padding: 0; font-size: 13px; cursor: pointer; }
 .demo-faixa code { background: rgba(255,255,255,.18); padding: 1px 6px; border-radius: 4px; font-weight: 700; }
+
+/* ---------- conta do cliente ---------- */
+.conta-form { display: flex; flex-direction: column; gap: 10px; }
+.conta-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+.conta-form label.check { flex-direction: row; align-items: flex-start; gap: 8px; font-weight: 400; line-height: 1.45; }
+.conta-form label.check input { margin-top: 3px; }
+.conta-form input[type=email], .conta-form input[type=password], .conta-form input[type=text], .conta-form input[type=tel] {
+  border: 1px solid var(--linha); background: var(--branco); border-radius: 8px; padding: 11px 12px; width: 100%; font-weight: 400;
+}
+.conta-form a { color: var(--texto); }
+.conta-links { margin: 2px 0 0; font-size: 13px; color: var(--suave); text-align: center; }
+.conta-links button, .link { background: none; border: 0; padding: 0; color: var(--texto); text-decoration: underline; font-size: inherit; cursor: pointer; font-weight: 600; }
+.aviso-conta { background: #e6f6ec; color: #135c33; border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 0; }
+.conta-perfil { display: flex; flex-direction: column; gap: 10px; }
+.conta-ola { display: flex; align-items: center; gap: 12px; }
+.conta-ola small { display: block; color: var(--suave); font-size: 13px; }
+.conta-avatar { width: 42px; height: 42px; border-radius: 50%; background: var(--destaque); color: var(--preto); display: grid; place-items: center; font-weight: 800; font-size: 18px; flex: none; }
+.conta-perfil .cep-info { margin: 0; line-height: 1.6; }
+.titulo-secao { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; margin: 18px 0 8px; }
+.gaveta .vazio { padding: 12px 0 16px; }
