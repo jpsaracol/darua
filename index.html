@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=202611010436">
+  <link rel="stylesheet" href="css/style.css?v=202611061700">
 </head>
 <body>
   <header class="topo">
@@ -33,6 +33,14 @@
   <div class="faixa" id="faixa"></div>
 
   <main class="wrap">
+    <div class="abas-loja" id="abasLoja" role="tablist" aria-label="Tipo de compra" hidden>
+      <button class="aba-loja on" data-modo="pronta" role="tab" aria-selected="true">Pronta entrega</button>
+      <button class="aba-loja" data-modo="encomenda" role="tab" aria-selected="false">Sob encomenda</button>
+    </div>
+    <p class="aviso-encomenda" id="avisoEncomenda" hidden>
+      <b>Como funciona a encomenda:</b> você escolhe o modelo e o tamanho, paga por Pix e a gente encomenda a camisa.
+      Ela chega em <span id="prazoEncomendaTxt"></span> dias depois do pagamento e então enviamos para você (ou você retira).
+    </p>
     <div class="filtros">
       <div class="chips" id="filtroCategoria"></div>
       <div class="filtros-dir">
@@ -95,9 +103,9 @@
   <div class="toast" id="toast" role="status"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="js/config.js?v=202611010436"></script>
-  <script src="js/data.js?v=202611010436"></script>
-  <script src="js/conta.js?v=202611010436"></script>
-  <script src="js/loja.js?v=202611010436"></script>
+  <script src="js/config.js?v=202611061700"></script>
+  <script src="js/data.js?v=202611061700"></script>
+  <script src="js/conta.js?v=202611061700"></script>
+  <script src="js/loja.js?v=202611061700"></script>
 </body>
 </html>

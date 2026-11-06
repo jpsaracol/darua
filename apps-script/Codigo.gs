@@ -121,6 +121,7 @@ function abaPedidos() {
 function movimentarEstoque(itens, sinal) {
   const c = lerCamisas();
   itens.forEach(function (it) {
+    if (it.enc) return;   // sob encomenda não tem estoque na loja
     const i = c.linhaDe[it.id];
     if (i === undefined || c.col[it.t] === undefined) return;
     const cel = c.sh.getRange(i + 1, c.col[it.t] + 1);
@@ -158,9 +159,13 @@ function criarPedido(req) {
       const nomeCamisa = String(row[c.col.nome]);
       if (String(row[c.col.ativo]).trim().toUpperCase() === 'NAO') throw new Error(nomeCamisa + ' não está mais disponível.');
 
+      // sob encomenda (coluna "encomenda" = SIM): não confere estoque, só exige Pix
+      const enc = c.col.encomenda !== undefined && String(row[c.col.encomenda]).trim().toUpperCase() === 'SIM';
+      if (enc && req.pagamento !== 'pix') throw new Error('Camisa sob encomenda é paga por Pix na hora do pedido.');
+      if (enc && qtd > 10) throw new Error('Encomenda de até 10 camisas por tamanho. Para mais, fale com a gente.');
       const key = it.id + '|' + it.t;
       precisa[key] = (precisa[key] || 0) + qtd;
-      if (num(row[c.col[it.t]]) < precisa[key]) {
+      if (!enc && num(row[c.col[it.t]]) < precisa[key]) {
         throw new Error('Estoque insuficiente: ' + nomeCamisa + ' tamanho ' + it.t + '. Atualize a página e ajuste o carrinho.');
       }
 
@@ -170,7 +175,12 @@ function criarPedido(req) {
       const perso = it.perso ? { nome: texto(it.perso.nome, 12), num: texto(it.perso.num, 2) } : null;
       const unit = (promo > 0 && promo < preco ? promo : preco) + (perso ? PERSONALIZACAO_PRECO : 0);
       subtotal += unit * qtd;
-      itens.push({ id: String(it.id), nome: nomeCamisa, t: it.t, qtd: qtd, unit: unit, perso: perso });
+      const item = { id: String(it.id), nome: nomeCamisa, t: it.t, qtd: qtd, unit: unit, perso: perso };
+      if (enc) {
+        item.enc = true;
+        if (c.col.fornecedor !== undefined) item.forn = texto(row[c.col.fornecedor], 300);   // link do álbum, só o vendedor vê
+      }
+      itens.push(item);
     });
 
     const f = req.frete || {};
@@ -184,7 +194,7 @@ function criarPedido(req) {
     const ultimo = sh.getLastRow() > 1 ? num(sh.getRange(sh.getLastRow(), 1).getValue()) : 1000;
     const numero = ultimo + 1;
     const resumo = itens.map(function (i) {
-      return i.qtd + 'x ' + i.nome + ' (' + i.t + ')' + (i.perso ? ' [' + [i.perso.nome, i.perso.num].join(' ').trim() + ']' : '');
+      return (i.enc ? '[ENCOMENDA] ' : '') + i.qtd + 'x ' + i.nome + ' (' + i.t + ')' + (i.perso ? ' [' + [i.perso.nome, i.perso.num].join(' ').trim() + ']' : '');
     }).join('; ');
 
     sh.appendRow([
@@ -225,7 +235,7 @@ function acompanharPedidos(req) {
         numero: num(row[col.numero]), data: row[col.data], status: row[col.status],
         pagamento: row[col.pagamento], frete_tipo: row[col.frete_tipo], frete_valor: num(row[col.frete_valor]),
         subtotal: num(row[col.subtotal]), total: num(row[col.total]),
-        itens: itens.map(function (it) { return { nome: it.nome, t: it.t, qtd: it.qtd, unit: it.unit, perso: it.perso }; })
+        itens: itens.map(function (it) { return { nome: it.nome, t: it.t, qtd: it.qtd, unit: it.unit, perso: it.perso, enc: !!it.enc }; })
       });
       break;
     }
@@ -427,9 +437,20 @@ function cadastrarCamisa(req) {
       preco: preco, preco_promo: promo > 0 ? promo : '', foto: foto,
       cor1: texto(cm.cor1, 7), cor2: texto(cm.cor2, 7),
       listras: cm.listras === 'SIM' ? 'SIM' : 'NAO', descricao: texto(cm.descricao, 400),
-      ativo: cm.ativo === 'NAO' ? 'NAO' : 'SIM', destaque: cm.destaque === 'SIM' ? 'SIM' : 'NAO'
+      ativo: cm.ativo === 'NAO' ? 'NAO' : 'SIM', destaque: cm.destaque === 'SIM' ? 'SIM' : 'NAO',
+      encomenda: cm.encomenda === 'SIM' ? 'SIM' : 'NAO', fornecedor: texto(cm.fornecedor, 300)
     };
-    TAMANHOS.forEach(function (t) { valores[t] = Math.max(0, parseInt(cm[t], 10) || 0); });
+    TAMANHOS.forEach(function (t) { valores[t] = cm.encomenda === 'SIM' ? 0 : Math.max(0, parseInt(cm[t], 10) || 0); });
+    // planilha sem as colunas "encomenda" e "fornecedor": cria no fim da linha 1 na primeira camisa sob encomenda
+    if (valores.encomenda === 'SIM') {
+      ['encomenda', 'fornecedor'].forEach(function (nomeCol) {
+        if (c.col[nomeCol] !== undefined) return;
+        const n = c.v[0].length + 1;
+        c.sh.getRange(1, n).setValue(nomeCol).setFontWeight('bold');
+        c.v[0].push(nomeCol);
+        c.col[nomeCol] = n - 1;
+      });
+    }
 
     const linha = c.v[0].map(function (cab) {
       const k = String(cab).trim();
@@ -655,7 +676,7 @@ function verConta(req) {
       numero: num(row[col.numero]), data: row[col.data], status: row[col.status],
       pagamento: row[col.pagamento], frete_tipo: row[col.frete_tipo], frete_valor: num(row[col.frete_valor]),
       subtotal: num(row[col.subtotal]), total: num(row[col.total]),
-      itens: itens.map(function (it) { return { nome: it.nome, t: it.t, qtd: it.qtd, unit: it.unit, perso: it.perso }; })
+      itens: itens.map(function (it) { return { nome: it.nome, t: it.t, qtd: it.qtd, unit: it.unit, perso: it.perso, enc: !!it.enc }; })
     });
   }
   return { ok: true, perfil: perfil, pedidos: pedidos };

@@ -11,6 +11,7 @@ Loja virtual de camisas de time com catálogo, controle de estoque por tamanho, 
 - Catálogo com filtros por categoria (Brasileirão, Europeu, Seleções, Retrô), tamanho, busca e ordenação
 - Estoque por tamanho (P ao XGG) com bloqueio automático de tamanhos esgotados e aviso de últimas unidades
 - Personalização com nome e número
+- Aba **Sob encomenda**: camisas do catálogo do fornecedor sem estoque na loja (coluna `encomenda` = SIM na planilha), todos os tamanhos disponíveis, prazo informado antes da compra e pagamento só por Pix; o vendedor vê o link do álbum do fornecedor no pedido
 - Frete calculado pelo CEP (API ViaCEP) com tabela por região, frete grátis acima de um valor e opção de retirada
 - Checkout com Pix (QR Code e copia e cola gerados no padrão BR Code do Banco Central) ou pagamento na entrega/retirada
 - Pedidos salvos na planilha por uma API em Google Apps Script, com baixa automática de estoque, preços recalculados no servidor e trava contra venda simultânea da mesma peça

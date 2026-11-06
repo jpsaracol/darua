@@ -28,6 +28,11 @@ const DR = (() => {
   const emPromo = p => p.precoPromo > 0 && p.precoPromo < p.preco;
   const precoFinal = p => (emPromo(p) ? p.precoPromo : p.preco);
   const totalEstoque = p => TAMANHOS.reduce((s, t) => s + (p.estoque[t] || 0), 0);
+  // sob encomenda não tem estoque na loja: todos os tamanhos ficam disponíveis
+  const MAX_ENCOMENDA = 10;
+  const estoqueDe = (p, t) => (p.encomenda ? MAX_ENCOMENDA : (p.estoque[t] || 0));
+  const temEstoque = p => p.encomenda || totalEstoque(p) > 0;
+  const prazoEncomenda = () => (config.encomenda && config.encomenda.prazo) || '20 a 35';
 
   // Camisa desenhada em SVG, usada quando o produto ainda não tem foto.
   // padrao: 'lisa', 'listras' (verticais), 'aros' (horizontais), 'faixa' (diagonal) ou 'metade'
@@ -130,6 +135,7 @@ const DR = (() => {
         estoque: Object.fromEntries(TAMANHOS.map(t => [t, Math.max(0, parseInt(v(l, t), 10) || 0)])),
         ativo: v(l, 'ativo') === '' || sim(v(l, 'ativo')),
         destaque: sim(v(l, 'destaque')),
+        encomenda: sim(v(l, 'encomenda')),
         ordem
       }));
   }
@@ -233,7 +239,7 @@ const DR = (() => {
 
   return {
     TAMANHOS, CATEGORIAS, config, api, pixPayload, meusPedidos, guardarPedido,
-    brl, esc, normalizar, emPromo, precoFinal, totalEstoque, camisaSVG, imagemDe,
+    brl, esc, normalizar, emPromo, precoFinal, totalEstoque, estoqueDe, temEstoque, prazoEncomenda, camisaSVG, imagemDe,
     paraProdutos, carregarCatalogo, catalogoEmCache, loadCart, saveCart, buscarCEP, opcoesFrete
   };
 })();

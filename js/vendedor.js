@@ -98,7 +98,7 @@
           <span>🚚 ${esc(p.frete_tipo)} — ${Number(p.frete_valor) ? brl(p.frete_valor) : 'Grátis'}</span>
           ${p.endereco ? `<span>📍 ${esc(p.endereco)} — ${esc(p.cidade)}/${esc(p.uf)}, CEP ${esc(p.cep)}</span>` : ''}
         </div>
-        <ul>${(p.itens_json || []).map(i => `<li>${i.qtd}x ${esc(i.nome)} — Tam. <b>${esc(i.t)}</b>${i.perso ? ` · Personalização: <b>${esc([i.perso.nome, i.perso.num].filter(Boolean).join(' '))}</b>` : ''} — ${brl(i.unit * i.qtd)}</li>`).join('')}</ul>
+        <ul>${(p.itens_json || []).map(i => `<li>${i.enc ? '<span class="pill enc">Encomenda</span> ' : ''}${i.qtd}x ${esc(i.nome)} — Tam. <b>${esc(i.t)}</b>${i.perso ? ` · Personalização: <b>${esc([i.perso.nome, i.perso.num].filter(Boolean).join(' '))}</b>` : ''} — ${brl(i.unit * i.qtd)}${i.forn && /^https?:\/\//i.test(i.forn) ? ` · <a href="${esc(i.forn)}" target="_blank" rel="noopener noreferrer">ver no fornecedor ↗</a>` : ''}</li>`).join('')}</ul>
         <div class="pedido-rodape">
           <span>Subtotal ${brl(p.subtotal)} + frete ${brl(p.frete_valor)}</span>
           <b>Total: ${brl(p.total)}</b>

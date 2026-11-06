@@ -30,11 +30,17 @@
     ['argentina-2026-home', 'Argentina 2026 Home', 'Seleção Argentina', 'Seleções', '2026', 'Torcedor', 449.9, 399.9, '#75aadb', '#ffffff', 'listras', 'listras celestes e brancas', [2, 3, 4, 2, 1], false],
     ['portugal-2026-home', 'Portugal 2026 Home', 'Seleção Portuguesa', 'Seleções', '2026', 'Torcedor', 449.9, 0, '#b40d1e', '#046a38', 'metade', 'vermelho e verde divididos ao meio', [1, 2, 2, 1, 0], false],
     ['gremio-1983-retro', 'Grêmio 1983 Retrô', 'Grêmio', 'Retrô', '1983', 'Retrô', 219.9, 0, '#0d80bf', '#111111', 'listras', 'o visual da temporada do título mundial de 1983', [0, 2, 3, 1, 0], false],
-    ['brasil-1970-retro', 'Brasil 1970 Retrô', 'Seleção Brasileira', 'Retrô', '1970', 'Retrô', 199.9, 0, '#ffd700', '#009c3b', 'lisa', 'gola redonda verde no estilo dos anos 70', [1, 3, 3, 2, 1], false]
+    ['brasil-1970-retro', 'Brasil 1970 Retrô', 'Seleção Brasileira', 'Retrô', '1970', 'Retrô', 199.9, 0, '#ffd700', '#009c3b', 'lisa', 'gola redonda verde no estilo dos anos 70', [1, 3, 3, 2, 1], false],
+    // sob encomenda: vêm do catálogo do fornecedor, sem estoque na loja (aba "Sob encomenda")
+    ['enc-real-madrid-26-home', 'Real Madrid 26/27 Home', 'Real Madrid', 'Europeu', '26/27', 'Torcedor', 199.9, 0, '#ffffff', '#c9a227', 'lisa', 'o branco tradicional e detalhes dourados', [0, 0, 0, 0, 0], false],
+    ['enc-milan-26-home', 'Milan 26/27 Home', 'Milan', 'Europeu', '26/27', 'Torcedor', 199.9, 0, '#c4161c', '#111111', 'listras', 'as listras rubro-negras clássicas', [0, 0, 0, 0, 0], false],
+    ['enc-boca-26-home', 'Boca Juniors 26/27 Home', 'Boca Juniors', 'Sul-Americano', '26/27', 'Torcedor', 199.9, 0, '#0b2a6b', '#f2c200', 'aros', 'a faixa amarela no peito sobre o azul', [0, 0, 0, 0, 0], false],
+    ['enc-japao-2026-home', 'Japão 2026 Home', 'Seleção Japonesa', 'Seleções', '2026', 'Jogador', 249.9, 0, '#13274f', '#ffffff', 'lisa', 'azul-marinho com grafismos sutis', [0, 0, 0, 0, 0], false]
   ].map(([id, nome, time, categoria, temporada, tipo, preco, precoPromo, c1, c2, padrao, extra, est, destaque, foto], ordem) => ({
     id, nome, time, categoria, temporada, tipo, preco, precoPromo, foto: foto || '', cores: [c1, c2],
     listras: padrao === 'listras', padrao, descricao: foto ? extra : desc(time, extra),
-    estoque: Object.fromEntries(DR.TAMANHOS.map((t, i) => [t, est[i]])), ativo: true, destaque, ordem
+    estoque: Object.fromEntries(DR.TAMANHOS.map((t, i) => [t, est[i]])), ativo: true, destaque, ordem,
+    encomenda: id.startsWith('enc-')
   }));
 
   // ---------------- estado no navegador ----------------
@@ -88,6 +94,7 @@
 
   function movimentar(e, itens, sinal) {
     itens.forEach(it => {
+      if (it.enc) return;   // sob encomenda não tem estoque
       const extra = e.extras.find(p => p.id === it.id);
       const est = extra ? extra.estoque : e.estoque[it.id];
       if (est) est[it.t] = Math.max(0, (est[it.t] || 0) + sinal * it.qtd);
@@ -130,9 +137,10 @@
       const itens = req.itens.map(it => {
         const p = prods.find(x => x.id === it.id);
         if (!p) throw new Error('Uma camisa do carrinho não existe mais. Atualize a página.');
-        if ((p.estoque[it.t] || 0) < it.qtd) throw new Error(`Estoque insuficiente: ${p.nome} tamanho ${it.t}.`);
+        if (p.encomenda && req.pagamento !== 'pix') throw new Error('Camisa sob encomenda é paga por Pix na hora do pedido.');
+        if (!p.encomenda && (p.estoque[it.t] || 0) < it.qtd) throw new Error(`Estoque insuficiente: ${p.nome} tamanho ${it.t}.`);
         const unit = DR.precoFinal(p) + (it.perso ? DR.config.personalizacaoPreco : 0);
-        return { id: p.id, nome: p.nome, t: it.t, qtd: it.qtd, unit, perso: it.perso || null };
+        return { id: p.id, nome: p.nome, t: it.t, qtd: it.qtd, unit, perso: it.perso || null, ...(p.encomenda ? { enc: true, forn: p.fornecedor || '' } : {}) };
       });
       movimentar(e, itens, -1);
       const subtotal = itens.reduce((s, i) => s + i.unit * i.qtd, 0);
@@ -141,7 +149,7 @@
       e.pedidos.push({
         numero, data: new Date().toISOString(), status: req.pagamento === 'pix' ? 'Aguardando Pix' : 'Novo',
         pagamento: req.pagamento === 'pix' ? 'Pix' : 'Na entrega', cliente: req.cliente.nome, telefone: req.cliente.telefone, email: String(req.cliente.email || '').toLowerCase(),
-        itens: itens.map(i => `${i.qtd}x ${i.nome} (${i.t})`).join('; '), subtotal,
+        itens: itens.map(i => `${i.enc ? '[ENCOMENDA] ' : ''}${i.qtd}x ${i.nome} (${i.t})`).join('; '), subtotal,
         frete_tipo: req.frete.tipo, frete_valor: freteValor, total: subtotal + freteValor,
         cep: req.frete.cep, endereco: req.frete.endereco, cidade: req.frete.cidade, uf: req.frete.uf, itens_json: itens
       });
@@ -279,8 +287,8 @@
         preco: num(c.preco), precoPromo: num(c.preco_promo),
         foto: req.foto ? `data:${req.mime || 'image/jpeg'};base64,${req.foto}` : '',
         cores: [c.cor1 || '#111111', c.cor2 || '#ffffff'], listras: c.listras === 'SIM', padrao: c.listras === 'SIM' ? 'listras' : 'lisa',
-        descricao: c.descricao, estoque: Object.fromEntries(DR.TAMANHOS.map(t => [t, parseInt(c[t], 10) || 0])),
-        ativo: c.ativo !== 'NAO', destaque: c.destaque === 'SIM'
+        descricao: c.descricao, estoque: Object.fromEntries(DR.TAMANHOS.map(t => [t, c.encomenda === 'SIM' ? 0 : parseInt(c[t], 10) || 0])),
+        ativo: c.ativo !== 'NAO', destaque: c.destaque === 'SIM', encomenda: c.encomenda === 'SIM', fornecedor: c.fornecedor || ''
       });
       salvar(e);
       return { ok: true, id };

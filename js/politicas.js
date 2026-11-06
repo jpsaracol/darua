@@ -4,6 +4,7 @@
   const emp = cfg.empresa || {};
 
   document.querySelectorAll('[data-cfg]').forEach(el => { el.textContent = cfg[el.dataset.cfg] ?? ''; });
+  document.querySelectorAll('[data-cfg-encomenda]').forEach(el => { el.textContent = (cfg.encomenda && cfg.encomenda.prazo) || '20 a 35'; });
 
   // e-mail: some o trecho inteiro se a loja ainda não cadastrou
   document.querySelectorAll('[data-se="email"]').forEach(el => { el.hidden = !emp.email; });

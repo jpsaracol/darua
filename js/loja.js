@@ -3,7 +3,7 @@
   const $ = (s, el = document) => el.querySelector(s);
   const { TAMANHOS, CATEGORIAS, brl, esc } = DR;
 
-  const filtro = { cat: 'Todas', tam: '', busca: '', ordem: 'destaque' };
+  const filtro = { modo: 'pronta', cat: 'Todas', tam: '', busca: '', ordem: 'destaque' };   // modo: 'pronta' ou 'encomenda'
   let carrinho = DR.loadCart();
   let endereco = null;   // resposta do ViaCEP
   let freteId = null;
@@ -34,11 +34,23 @@
   // quanto ainda dá para colocar no carrinho daquele tamanho
   function disponivel(p, t) {
     const noCarrinho = carrinho.filter(i => i.id === p.id && i.t === t).reduce((s, i) => s + i.qtd, 0);
-    return (p.estoque[t] || 0) - noCarrinho;
+    return DR.estoqueDe(p, t) - noCarrinho;
   }
 
   // ---------------- catálogo ----------------
   function montarFiltros() {
+    // a aba "Sob encomenda" só aparece quando a planilha tem alguma camisa marcada como encomenda
+    const temEncomenda = db().produtos.some(p => p.ativo && p.encomenda);
+    if (!temEncomenda) filtro.modo = 'pronta';
+    $('#abasLoja').hidden = !temEncomenda;
+    $('#abasLoja').querySelectorAll('[data-modo]').forEach(b => {
+      const on = b.dataset.modo === filtro.modo;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on);
+    });
+    $('#avisoEncomenda').hidden = filtro.modo !== 'encomenda';
+    $('#prazoEncomendaTxt').textContent = DR.prazoEncomenda();
+    $('#filtroTamanho').hidden = filtro.modo === 'encomenda';   // na encomenda todos os tamanhos estão disponíveis
     $('#filtroCategoria').innerHTML = ['Todas', ...CATEGORIAS]
       .map(c => `<button class="chip${c === filtro.cat ? ' on' : ''}" data-cat="${c}">${c}</button>`).join('');
     $('#filtroTamanho').innerHTML = '<option value="">Todos os tamanhos</option>' +
@@ -64,18 +76,20 @@
     };
     const lista = db().produtos
       .filter(p => p.ativo)
+      .filter(p => (filtro.modo === 'encomenda') === p.encomenda)
       .filter(p => filtro.cat === 'Todas' || p.categoria === filtro.cat)
-      .filter(p => !filtro.tam || (p.estoque[filtro.tam] || 0) > 0)
+      .filter(p => !filtro.tam || p.encomenda || (p.estoque[filtro.tam] || 0) > 0)
       .filter(p => !termo || DR.normalizar(`${p.nome} ${p.time} ${p.temporada} ${p.categoria}`).includes(termo))
-      .sort((a, b) => ((DR.totalEstoque(a) === 0) - (DR.totalEstoque(b) === 0)) || ordens[filtro.ordem](a, b));
+      .sort((a, b) => (DR.temEstoque(b) - DR.temEstoque(a)) || ordens[filtro.ordem](a, b));
 
     $('#grade').innerHTML = lista.map(p => {
       const total = DR.totalEstoque(p);
       let selo = '';
-      if (total === 0) selo = '<span class="selo esgotado">Esgotado</span>';
+      if (p.encomenda) selo = DR.emPromo(p) ? '<span class="selo promo">Promo</span>' : '<span class="selo encomenda">Encomenda</span>';
+      else if (total === 0) selo = '<span class="selo esgotado">Esgotado</span>';
       else if (DR.emPromo(p)) selo = '<span class="selo promo">Promo</span>';
       else if (total <= 5) selo = '<span class="selo ultimas">Últimas unidades</span>';
-      return `<button class="card${total ? '' : ' off'}" data-id="${p.id}">
+      return `<button class="card${DR.temEstoque(p) ? '' : ' off'}" data-id="${p.id}">
         ${selo}
         <img src="${DR.imagemDe(p)}" alt="${esc(p.nome)}" loading="lazy">
         <div class="card-info">
@@ -103,6 +117,7 @@
         <h2>${esc(p.nome)}</h2>
         <div class="preco">${precoHTML(p)}</div>
         <p class="mp-desc">${esc(p.descricao)}</p>
+        ${p.encomenda ? `<p class="mp-encomenda"><b>Sob encomenda:</b> chega em ${esc(DR.prazoEncomenda())} dias depois do pagamento, mais o prazo do frete. Pagamento só por Pix.</p>` : ''}
         <div class="rotulo">Tamanho</div>
         <div class="tamanhos">${TAMANHOS.map(t =>
           `<button class="tam" data-t="${t}" ${disponivel(p, t) <= 0 ? 'disabled' : ''}>${t}</button>`).join('')}
@@ -116,8 +131,8 @@
           </div>` : ''}
         <div class="linha-compra">
           <div class="qtd"><button data-q="-1" aria-label="Menos">−</button><span id="qtdProd">1</span><button data-q="1" aria-label="Mais">+</button></div>
-          <button class="btn primario" id="addCarrinho" ${DR.totalEstoque(p) === 0 ? 'disabled' : ''}>
-            ${DR.totalEstoque(p) === 0 ? 'Esgotado' : 'Adicionar ao carrinho'}
+          <button class="btn primario" id="addCarrinho" ${DR.temEstoque(p) ? '' : 'disabled'}>
+            ${!DR.temEstoque(p) ? 'Esgotado' : p.encomenda ? 'Encomendar' : 'Adicionar ao carrinho'}
           </button>
         </div>
       </div>`;
@@ -129,7 +144,7 @@
       const d = disponivel(p, tam);
       qtd = Math.min(qtd, d);
       $('#qtdProd').textContent = qtd;
-      aviso.textContent = d <= cfg.estoqueBaixo ? `Restam só ${d} no tamanho ${tam}!` : '';
+      aviso.textContent = !p.encomenda && d <= cfg.estoqueBaixo ? `Restam só ${d} no tamanho ${tam}!` : '';
     });
     corpo.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
       const max = tam ? disponivel(p, tam) : 10;
@@ -149,7 +164,10 @@
         if (num && (Number(num) < 0 || Number(num) > 99)) { aviso.textContent = 'Número deve ser de 0 a 99.'; return; }
         pers = { nome, num };
       }
-      if (qtd > disponivel(p, tam)) { aviso.textContent = 'Quantidade maior que o estoque disponível.'; return; }
+      if (qtd > disponivel(p, tam)) {
+        aviso.textContent = p.encomenda ? `Encomenda de até ${DR.estoqueDe(p, tam)} por tamanho. Para mais, fale com a gente.` : 'Quantidade maior que o estoque disponível.';
+        return;
+      }
 
       const key = `${p.id}|${tam}|${pers ? pers.nome + '#' + pers.num : ''}`;
       const existente = carrinho.find(i => i.key === key);
@@ -197,8 +215,11 @@
     document.body.style.overflow = '';
   }
 
+  const temEncomendaNoCarrinho = () => linhas().some(l => l.p.encomenda);
+
+  // encomenda é paga antes (Pix integral), porque a loja compra a camisa do fornecedor
   function pagamentoNaEntregaPermitido(frete) {
-    return DR.config.pagamentoNaEntrega && !!frete && (frete.id === 'retirada' || frete.local);
+    return DR.config.pagamentoNaEntrega && !!frete && (frete.id === 'retirada' || frete.local) && !temEncomendaNoCarrinho();
   }
 
   // Código Pix "copia e cola" + QR Code em SVG para um pedido
@@ -232,6 +253,7 @@
         <textarea class="pix-codigo" id="pixCodigo" readonly rows="4">${esc(codigo)}</textarea>
         <button class="btn primario largo" id="copiarPix">Copiar código Pix</button>
         <p class="cep-info">Recebedor: ${esc(DR.config.pix.nome)}. Assim que o pagamento for confirmado, separamos seu pedido e entramos em contato pelo telefone informado.</p>
+        ${p.encomenda ? `<p class="cep-info">Seu pedido tem camisa sob encomenda: ela chega em ${esc(DR.prazoEncomenda())} dias depois do pagamento e então enviamos tudo junto.</p>` : ''}
         <p class="cep-info"><b>Pague em até ${DR.config.pixPrazoHoras} horas.</b> Depois disso o pedido é cancelado automaticamente e as camisas voltam para a loja.</p>
       </div>`;
       $('#copiarPix').onclick = () => copiar(codigo, $('#pixCodigo'));
@@ -295,6 +317,7 @@
           <img src="${DR.imagemDe(l.p)}" alt="">
           <div>
             <div class="item-nome">${esc(l.p.nome)}</div>
+            ${l.p.encomenda ? `<div class="item-det item-enc">Sob encomenda · chega em ${esc(DR.prazoEncomenda())} dias</div>` : ''}
             <div class="item-det">Tamanho ${l.t}${l.perso ? ` · ${esc([l.perso.nome, l.perso.num].filter(Boolean).join(' '))}` : ''}</div>
             <div class="item-det">${brl(l.unit)} cada</div>
           </div>
@@ -344,6 +367,7 @@
             <input type="radio" name="pagamento" value="entrega" ${pagamento === 'entrega' ? 'checked' : ''}>
             <span>Pagar na ${frete.id === 'retirada' ? 'retirada' : 'entrega'}<small>Dinheiro, Pix ou cartão</small></span>
           </label>`
+        : cfg.pagamentoNaEntrega && L.some(l => l.p.encomenda) ? '<p class="cep-info">Pedidos com camisa sob encomenda são pagos por Pix na hora.</p>'
         : cfg.pagamentoNaEntrega ? '<p class="cep-info">Pagamento na entrega disponível só para retirada e entregas na nossa cidade.</p>' : ''}
       </div>`;
 
@@ -384,7 +408,7 @@
     if (!item) return;
     if (delta > 0) {
       const p = db().produtos.find(x => x.id === item.id);
-      if (!p || disponivel(p, item.t) <= 0) { toast('Sem mais unidades desse tamanho.'); return; }
+      if (!p || disponivel(p, item.t) <= 0) { toast(p?.encomenda ? 'Limite de encomenda desse tamanho. Fale com a gente para mais.' : 'Sem mais unidades desse tamanho.'); return; }
     }
     item.qtd += delta;
     if (item.qtd <= 0) carrinho = carrinho.filter(i => i !== item);
@@ -442,7 +466,7 @@
           endereco: frete.id === 'entrega' ? rua : ''
         }
       });
-      pedidoFeito = { numero: r.numero, total: r.total, pagamento, retirada: frete.id === 'retirada' };
+      pedidoFeito = { numero: r.numero, total: r.total, pagamento, retirada: frete.id === 'retirada', encomenda: L.some(l => l.p.encomenda) };
       DR.guardarPedido(r.numero, tel);
       if (pf) DRConta.lembrarEntrega({
         nome, telefone: tel, cep: endereco?.cep || '', cidade: endereco?.localidade || '', uf: endereco?.uf || '',
@@ -492,7 +516,7 @@
         : `<ol class="linha-tempo">${etapasDo(p).map((e, i) =>
             `<li class="${i < passo ? 'feito' : i === passo ? 'atual' : ''}">${e}</li>`).join('')}</ol>`}
       ${p.status === 'Aguardando Pix' ? `<p class="cep-info">Aguardando a confirmação do seu Pix.${p.data ? ` Pague até <b>${prazoPix(p.data)}</b> ou o pedido é cancelado.` : ''}</p>` : ''}
-      <ul class="mp-itens">${p.itens.map(i => `<li>${i.qtd}x ${esc(i.nome)} — ${esc(i.t)}${i.perso ? ` · ${esc([i.perso.nome, i.perso.num].filter(Boolean).join(' '))}` : ''}</li>`).join('')}</ul>
+      <ul class="mp-itens">${p.itens.map(i => `<li>${i.qtd}x ${esc(i.nome)} — ${esc(i.t)}${i.enc ? ' · sob encomenda' : ''}${i.perso ? ` · ${esc([i.perso.nome, i.perso.num].filter(Boolean).join(' '))}` : ''}</li>`).join('')}</ul>
       <div class="linha-total"><span>${esc(p.pagamento)} · ${esc(p.frete_tipo)}</span><b>${brl(p.total)}</b></div>
       ${p.status === 'Aguardando Pix' ? `<button class="btn primario largo" data-pagar="${p.numero}">Pagar com Pix</button><div class="mp-pix" hidden></div>` : ''}
     </div>`;
@@ -583,6 +607,15 @@
     $('#filtroTamanho').value = filtro.tam;
     renderGrade();
   };
+  $('#abasLoja').onclick = e => {
+    const b = e.target.closest('[data-modo]');
+    if (!b || b.dataset.modo === filtro.modo) return;
+    filtro.modo = b.dataset.modo;
+    filtro.cat = 'Todas';
+    filtro.tam = '';
+    montarFiltros();
+    renderGrade();
+  };
   $('#filtroTamanho').onchange = e => { filtro.tam = e.target.value; renderGrade(); };
   $('#ordenar').onchange = e => { filtro.ordem = e.target.value; renderGrade(); };
   $('#busca').oninput = e => { filtro.busca = e.target.value; renderGrade(); };
@@ -618,6 +651,8 @@
         return;
       }
     }
+    montarFiltros();
+    $('#filtroTamanho').value = filtro.tam;
     renderGrade();
     if (!$('#carrinho').hidden) renderCarrinho();
   }
@@ -640,10 +675,10 @@
     $('#contato').href = `https://wa.me/${DR.config.whatsapp.replace(/\D/g, '')}`;
     $('#contato').hidden = false;
   }
+  catalogo = DR.catalogoEmCache() || [];
   montarFiltros();
   renderFaixa();
   atualizarContador();
-  catalogo = DR.catalogoEmCache() || [];
   if (catalogo.length) renderGrade();
   else { $('#vazio').textContent = 'Carregando camisas...'; $('#vazio').hidden = false; }
   atualizarCatalogo();

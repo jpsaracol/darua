@@ -25,7 +25,7 @@ const DARUA_CONFIG = {
     email: ''
   },
   trocaTamanhoDias: 30,        // prazo para troca de tamanho (política da loja; o arrependimento de 7 dias é lei)
-  politicasAtualizadas: '01/11/2026',
+  politicasAtualizadas: '06/11/2026',
 
   // WhatsApp de contato (botão "Fale conosco"): 55 + DDD + número, só dígitos
   whatsapp: '',
@@ -36,6 +36,15 @@ const DARUA_CONFIG = {
 
   // Parcelamento mostrado na vitrine ("ou 3x de..."). Deixe 0 enquanto a loja não aceitar cartão parcelado no site.
   parcelasSemJuros: 0,
+
+  // ---------- sob encomenda (camisas do catálogo do fornecedor, sem estoque na loja) ----------
+  // Na planilha, a camisa com "SIM" na coluna "encomenda" vai para a aba "Sob encomenda" da loja:
+  // todos os tamanhos ficam disponíveis, o pagamento é só Pix (valor integral) e o prazo abaixo aparece antes da compra.
+  encomenda: {
+    prazo: '20 a 35',          // dias corridos do pagamento até a camisa chegar na loja (o frete soma depois)
+    // preço sugerido ao cadastrar, por tipo (dá para mudar na hora do cadastro ou depois na planilha)
+    precos: { Torcedor: 199.9, Jogador: 249.9, 'Retrô': 229.9, Treino: 179.9 }
+  },
 
   // Mostra "Restam só X" quando um tamanho tiver até essa quantidade
   estoqueBaixo: 2,

@@ -20,6 +20,29 @@
   $('#estoqueCampos').innerHTML = DR.TAMANHOS.map(t =>
     `<label>${t} <input type="number" name="${t}" min="0" max="999" value="0" inputmode="numeric"></label>`).join('');
 
+  // ---------------- sob encomenda ----------------
+  // sem estoque: some o quadro de tamanhos e o preço vem da tabela do js/config.js (dá para mudar)
+  const precosEncomenda = (DR.config.encomenda && DR.config.encomenda.precos) || {};
+  const precoTxt = n => (n ? Number(n).toFixed(2).replace('.', ',') : '');
+  let precoAuto = '';   // último preço preenchido sozinho; se o vendedor digitou outro, não mexe
+  function precoSugerido() {
+    if (!form.encomenda.checked) return;
+    const novo = precoTxt(precosEncomenda[form.tipo.value]);
+    if (novo && (!form.preco.value.trim() || form.preco.value.trim() === precoAuto)) {
+      form.preco.value = novo;
+      precoAuto = novo;
+    }
+  }
+  function modoEncomenda() {
+    const enc = form.encomenda.checked;
+    $('#estoqueBox').hidden = enc;
+    $('#fornecedorCampo').hidden = !enc;
+    if (enc) precoSugerido();
+    else if (form.preco.value.trim() === precoAuto) { form.preco.value = ''; precoAuto = ''; }
+  }
+  form.encomenda.onchange = modoEncomenda;
+  form.tipo.onchange = precoSugerido;
+
   // ---------------- foto ----------------
   // Reduz para no máximo 1280px em JPEG: a foto do celular cai de ~4 MB para ~250 KB,
   // o envio fica rápido e cabe folgado no limite do Apps Script e da IA
@@ -75,6 +98,7 @@
       ['nome', 'time', 'temporada', 'descricao'].forEach(k => { if (c[k]) form[k].value = c[k]; });
       if (c.categoria) form.categoria.value = c.categoria;
       if (c.tipo) form.tipo.value = c.tipo;
+      precoSugerido();
       if (c.cor1) form.cor1.value = c.cor1;
       if (c.cor2) form.cor2.value = c.cor2;
       form.listras.checked = c.listras === 'SIM';
@@ -82,7 +106,7 @@
       if (r.demo) aviso('ℹ️ ' + r.observacao, 'duvida');
       else aviso(duvida
         ? `⚠️ A IA ficou em dúvida${r.observacao ? ': ' + r.observacao : '.'} Confira com atenção.`
-        : '✓ Camisa identificada. Confira os dados e complete preço e estoque.', duvida ? 'duvida' : 'ok');
+        : form.encomenda.checked ? '✓ Camisa identificada. Confira os dados e o preço.' : '✓ Camisa identificada. Confira os dados e complete preço e estoque.', duvida ? 'duvida' : 'ok');
       form.preco.focus();
     } catch (er) {
       aviso(er.message, 'duvida');
@@ -99,6 +123,8 @@
     camisa.listras = form.listras.checked ? 'SIM' : 'NAO';
     camisa.destaque = form.destaque.checked ? 'SIM' : 'NAO';
     camisa.ativo = form.ativo.checked ? 'SIM' : 'NAO';
+    camisa.encomenda = form.encomenda.checked ? 'SIM' : 'NAO';
+    camisa.fornecedor = form.encomenda.checked ? form.fornecedor.value.trim() : '';
 
     const btn = $('#salvar');
     btn.disabled = true;
@@ -107,6 +133,8 @@
       const r = await DR.api('cadastrar', { senha: DRVendedor.senha(), camisa, foto: foto && foto.base64, mime: foto && foto.mime });
       DRVendedor.toast(`Camisa salva na planilha (${r.id})!`);
       form.reset();
+      precoAuto = '';
+      modoEncomenda();
       foto = null;
       $('#fotoInput').value = '';
       $('#fotoPrevia').hidden = true;

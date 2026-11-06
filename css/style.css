@@ -95,6 +95,16 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px s
 .selo.promo { background: var(--vermelho); color: #fff; }
 .selo.ultimas { background: var(--destaque); color: var(--preto); }
 .selo.esgotado { background: var(--preto); color: #fff; }
+.selo.encomenda { background: #1f4fd1; color: #fff; }
+
+/* abas Pronta entrega / Sob encomenda */
+.abas-loja { display: flex; gap: 4px; margin-top: 28px; border-bottom: 2px solid var(--linha); }
+.aba-loja { background: none; border: 0; padding: 12px 16px; font-size: 15px; font-weight: 700; color: var(--suave); border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.aba-loja.on { color: var(--preto); border-bottom-color: var(--preto); }
+.aviso-encomenda { margin: 16px 0 0; padding: 12px 14px; border-radius: var(--raio); background: #eef2fd; font-size: 14px; line-height: 1.5; }
+.abas-loja:not([hidden]) ~ .filtros { margin-top: 16px; }
+.mp-encomenda { font-size: 14px; background: #eef2fd; border-radius: 8px; padding: 10px 12px; line-height: 1.45; }
+.item-enc { color: #1f4fd1; font-weight: 600; }
 .preco { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .preco b { font-size: 18px; }
 .preco s { color: var(--suave); font-size: 13px; }
@@ -406,3 +416,10 @@ tr:last-child td { border-bottom: 0; }
 .conta-perfil .cep-info { margin: 0; line-height: 1.6; }
 .titulo-secao { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; margin: 18px 0 8px; }
 .gaveta .vazio { padding: 12px 0 16px; }
+
+/* cadastro: sob encomenda */
+.encomenda-box { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--linha); border-radius: var(--raio); padding: 12px; margin-bottom: 14px; background: #eef2fd; }
+.encomenda-box .check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.encomenda-box > label:not(.check) { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+.encomenda-box small { font-weight: 400; color: var(--suave); }
+.pill.enc { background: #1f4fd1; color: #fff; }
