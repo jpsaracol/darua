@@ -34,12 +34,24 @@
         </div>
         <nav>
           <button class="aba on" data-aba="pedidos">Pedidos</button>
+          <button class="aba" data-aba="solicitacoes">Solicitações <span class="cont" id="contSolic" hidden></span></button>
           <button class="aba" data-aba="cadastro">+ Camisa</button>
           <a href="index.html" target="_blank">Ver loja ↗</a>
           <button id="sair">Sair</button>
         </nav>
       </div>
     </header>
+
+    <main class="wrap" id="abaSolicitacoes" style="padding-top:24px" hidden>
+      <h2>Solicitações de clientes</h2>
+      <p class="dica" style="margin-bottom:14px">Camisas que os clientes pediram pelo "Peça a sua", na aba Sob encomenda da loja. Procure no fornecedor, responda pelo WhatsApp com preço e prazo e, se fechar, cadastre a camisa como sob encomenda para o cliente comprar pelo site.</p>
+      <div class="barra">
+        <select id="filtroSolic" style="width:auto"></select>
+        <span class="esp"></span>
+        <button class="btn pequeno" id="atualizarSolic">Atualizar</button>
+      </div>
+      <div class="solicitacoes" id="listaSolic"></div>
+    </main>
 
     <main class="wrap" id="abaPedidos" style="padding-top:24px">
       <div class="kpis" id="kpis"></div>
@@ -57,6 +69,19 @@
       <h2>Cadastrar camisa</h2>
       <p class="dica">Tire uma foto de frente, com o escudo aparecendo e boa luz, ou escolha uma da galeria. A IA preenche o que conseguir; confira tudo e complete preço e estoque.</p>
       <p class="dica">Camisa do fornecedor (sob encomenda): no Yupoo, abra o álbum, segure o dedo na foto da frente e salve; depois escolha ela aqui e marque "Sob encomenda".</p>
+
+      <details class="lote" id="lote">
+        <summary>Cadastrar várias camisas do fornecedor de uma vez (sob encomenda)</summary>
+        <p class="dica">Salve no celular as fotos de frente das camisas do Yupoo, escolha todas aqui e toque em cadastrar. A IA identifica uma por uma e salva como sob encomenda, com o preço do tipo (configurado no js/config.js). Se a IA ficar em dúvida, a camisa é salva <b>escondida</b>: confira na planilha e mude "ativo" para SIM.</p>
+        <label class="btn largo lote-escolher">📷 Escolher fotos da galeria
+          <input type="file" id="loteInput" accept="image/*" multiple>
+        </label>
+        <label class="lote-link">Link do álbum ou categoria no fornecedor <small>(opcional, vale para todas)</small>
+          <input type="url" id="loteLink" maxlength="300" placeholder="https://ezfashion.x.yupoo.com/..." inputmode="url">
+        </label>
+        <ul class="lote-lista" id="loteLista"></ul>
+        <button class="btn primario largo" id="loteIniciar" type="button" hidden>Cadastrar</button>
+      </details>
 
       <label class="foto-box" id="fotoBox">
         <input type="file" id="fotoInput" accept="image/*">
@@ -104,8 +129,10 @@
 
   <script src="config.js?v=202611061700"></script>
   <script src="../js/data.js?v=202611061700"></script>
-  <script src="demo.js?v=202611061626"></script>
+  <script src="demo.js?v=202611061638"></script>
   <script src="../js/vendedor.js?v=202611061700"></script>
   <script src="../js/cadastro.js?v=202611061700"></script>
+  <script src="../js/lote.js?v=202611061700"></script>
+  <script src="../js/solicitacoes.js?v=202611061700"></script>
 </body>
 </html>

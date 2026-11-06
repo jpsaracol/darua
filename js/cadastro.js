@@ -11,7 +11,9 @@
     b.onclick = () => {
       document.querySelectorAll('[data-aba]').forEach(x => x.classList.toggle('on', x === b));
       $('#abaPedidos').hidden = b.dataset.aba !== 'pedidos';
+      $('#abaSolicitacoes').hidden = b.dataset.aba !== 'solicitacoes';
       $('#abaCadastro').hidden = b.dataset.aba !== 'cadastro';
+      if (b.dataset.aba === 'solicitacoes' && window.DRSolicitacoes) DRSolicitacoes.carregar();
     };
   });
 
@@ -44,31 +46,11 @@
   form.tipo.onchange = precoSugerido;
 
   // ---------------- foto ----------------
-  // Reduz para no máximo 1280px em JPEG: a foto do celular cai de ~4 MB para ~250 KB,
-  // o envio fica rápido e cabe folgado no limite do Apps Script e da IA
-  function reduzir(arquivo) {
-    return new Promise((ok, falha) => {
-      const img = new Image();
-      img.onload = () => {
-        const max = 1280, k = Math.min(1, max / Math.max(img.width, img.height));
-        const cv = document.createElement('canvas');
-        cv.width = Math.round(img.width * k);
-        cv.height = Math.round(img.height * k);
-        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-        URL.revokeObjectURL(img.src);
-        const url = cv.toDataURL('image/jpeg', 0.85);
-        ok({ url, base64: url.split(',')[1], mime: 'image/jpeg' });
-      };
-      img.onerror = () => falha(new Error('Não deu para abrir essa imagem.'));
-      img.src = URL.createObjectURL(arquivo);
-    });
-  }
-
   $('#fotoInput').onchange = async e => {
     const arq = e.target.files[0];
     if (!arq) return;
     try {
-      const r = await reduzir(arq);
+      const r = await DR.reduzirImagem(arq);
       foto = { base64: r.base64, mime: r.mime };
       $('#fotoPrevia').src = r.url;
       $('#fotoPrevia').hidden = false;

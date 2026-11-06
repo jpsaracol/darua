@@ -40,6 +40,7 @@
     <p class="aviso-encomenda" id="avisoEncomenda" hidden>
       <b>Como funciona a encomenda:</b> você escolhe o modelo e o tamanho, paga por Pix e a gente encomenda a camisa.
       Ela chega em <span id="prazoEncomendaTxt"></span> dias depois do pagamento e então enviamos para você (ou você retira).
+      <br>Não achou o modelo? <button type="button" class="link" data-pedir>Mande a imagem da camisa que você quer</button> e a gente procura.
     </p>
     <div class="filtros">
       <div class="chips" id="filtroCategoria"></div>
@@ -79,6 +80,33 @@
     </div>
   </div>
 
+  <!-- Peça a sua (camisa que não está no site) -->
+  <div class="overlay" id="modalPedir" hidden>
+    <div class="modal modal-estreito" role="dialog" aria-modal="true" aria-labelledby="tituloPedir">
+      <button class="fechar" data-fechar aria-label="Fechar">×</button>
+      <form class="pedir" id="formPedir" novalidate>
+        <h2 id="tituloPedir">Peça a sua camisa</h2>
+        <p class="cep-info">Mande a imagem (print, foto ou da internet) e diga o tamanho. A gente procura no nosso fornecedor e responde pelo WhatsApp com preço e prazo. Sem compromisso.</p>
+        <label class="foto-box pedir-foto">
+          <input type="file" id="pedirFoto" accept="image/*">
+          <img id="pedirPrevia" alt="" hidden>
+          <span id="pedirFotoTxt">📷 Escolher imagem</span>
+        </label>
+        <label>Qual camisa? <small>(time, temporada, modelo)</small>
+          <textarea id="pedirDesc" rows="2" maxlength="400" placeholder="Ex.: Boca Juniors 26/27, camisa 2 azul"></textarea>
+        </label>
+        <label>Tamanho
+          <select id="pedirTam"><option value="">Ainda não sei</option></select>
+        </label>
+        <label>Seu nome <input type="text" id="pedirNome" maxlength="80" autocomplete="name"></label>
+        <label>WhatsApp com DDD <input type="tel" id="pedirTel" maxlength="20" autocomplete="tel" inputmode="tel"></label>
+        <p class="erro" id="pedirErro" hidden></p>
+        <p class="aceite">Usamos seu nome, WhatsApp e a imagem só para responder esta solicitação. Veja a <a href="politicas.html#privacidade" target="_blank">Política de privacidade</a>.</p>
+        <button class="btn primario largo" id="pedirEnviar">Enviar solicitação</button>
+      </form>
+    </div>
+  </div>
+
   <!-- Carrinho -->
   <div class="gaveta-fundo" id="carrinhoFundo" hidden></div>
   <aside class="gaveta" id="carrinho" hidden aria-label="Carrinho">
@@ -107,5 +135,6 @@
   <script src="js/data.js?v=202611061700"></script>
   <script src="js/conta.js?v=202611061700"></script>
   <script src="js/loja.js?v=202611061700"></script>
+  <script src="js/pedir.js?v=202611061700"></script>
 </body>
 </html>

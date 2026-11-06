@@ -64,7 +64,8 @@ function doPost(e) {
       pedido: criarPedido, acompanhar: acompanharPedidos, listar: listarPedidos, status: mudarStatus,
       identificar: identificarCamisa, cadastrar: cadastrarCamisa,
       criarConta: criarConta, entrar: entrarConta, conta: verConta, salvarEndereco: salvarEndereco,
-      excluirConta: excluirConta, recuperar: recuperarSenha, redefinir: redefinirSenha
+      excluirConta: excluirConta, recuperar: recuperarSenha, redefinir: redefinirSenha,
+      solicitar: criarSolicitacao, solicitacoes: listarSolicitacoes, statusSolicitacao: mudarStatusSolicitacao
     };
     if (!rotas[req.acao]) throw new Error('Ação inválida.');
     resp = rotas[req.acao](req);
@@ -523,6 +524,8 @@ function cancelarPixVencidos() {
 function cancelarPixVencidosAgendado() {
   const n = comTrava(cancelarPixVencidos);
   if (n) console.log(n + ' pedido(s) Pix vencido(s) cancelado(s).');
+  const s = comTrava(limparSolicitacoesAntigas);
+  if (s) console.log(s + ' solicitação(ões) antiga(s) apagada(s).');
 }
 
 // Rode UMA vez pelo editor (▶ Executar) para criar o gatilho de hora em hora
@@ -739,4 +742,119 @@ function redefinirSenha(req) {
     const novo = lerClientes();
     return { ok: true, token: emitirToken(novo, i), perfil: perfilDe(novo, i) };
   });
+}
+
+
+// ---------------- "Peça a sua": o cliente pede uma camisa que não está no site ----------------
+// Fica na aba "solicitacoes"; a imagem vai para a pasta do Drive "DA RUA - solicitações".
+// Endereço público: tem limite de tamanho da imagem, de envios por telefone e de envios por hora.
+const ABA_SOLICITACOES = 'solicitacoes';
+const PASTA_SOLICITACOES = 'DA RUA - solicitações';
+const CAB_SOLICITACOES = ['id', 'data', 'status', 'cliente', 'telefone', 'tamanho', 'descricao', 'foto'];
+const STATUS_SOLICITACAO = ['Nova', 'Respondida', 'Virou pedido', 'Recusada'];
+const SOLICITACOES_POR_HORA = 30;
+
+function abaSolicitacoes() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(ABA_SOLICITACOES);
+  if (!sh) {
+    sh = ss.insertSheet(ABA_SOLICITACOES);
+    sh.appendRow(CAB_SOLICITACOES);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, CAB_SOLICITACOES.length).setFontWeight('bold').setBackground('#0b0b0b').setFontColor('#ffffff');
+  }
+  return sh;
+}
+
+function criarSolicitacao(req) {
+  const nome = texto(req.nome, 80);
+  const telefone = texto(req.telefone, 20);
+  const descricao = texto(req.descricao, 400);
+  const tamanho = TAMANHOS.indexOf(req.tamanho) >= 0 ? req.tamanho : '';
+  if (!nome) throw new Error('Informe seu nome.');
+  const dig = String(telefone).replace(/\D/g, '');
+  if (dig.length < 10) throw new Error('Informe seu WhatsApp com DDD.');
+  if (!req.imagem && descricao.length < 3) throw new Error('Mande a imagem ou escreva qual camisa você quer.');
+  if (req.imagem && (String(req.imagem).length > 1500000 || ['image/jpeg', 'image/png'].indexOf(req.mime) < 0)) {
+    throw new Error('Imagem inválida ou grande demais.');
+  }
+
+  // freio contra abuso: 3 por telefone a cada 6 horas e no máximo SOLICITACOES_POR_HORA no total
+  const cache = CacheService.getScriptCache();
+  const chaveTel = 'sol_' + dig.slice(-9);
+  const doTel = num(cache.get(chaveTel));
+  const hora = 'sol_hora_' + Math.floor(Date.now() / 3600000);
+  const naHora = num(cache.get(hora));
+  if (doTel >= 3) throw new Error('Você já mandou algumas solicitações. Fale com a gente pelo WhatsApp.');
+  if (naHora >= SOLICITACOES_POR_HORA) throw new Error('Muitas solicitações agora. Tente de novo mais tarde ou chame no WhatsApp.');
+
+  return comTrava(function () {
+    const sh = abaSolicitacoes();
+    // contador guardado à parte: apagar solicitações antigas não faz um número se repetir
+    const props = PropertiesService.getScriptProperties();
+    const naPlanilha = sh.getLastRow() > 1 ? num(String(sh.getRange(sh.getLastRow(), 1).getValue()).replace(/\D/g, '')) : 0;
+    const proximo = Math.max(num(props.getProperty('SOL_ULTIMO')), naPlanilha) + 1;
+    props.setProperty('SOL_ULTIMO', String(proximo));
+    const id = 'S' + proximo;
+    let foto = '';
+    if (req.imagem) {
+      const pastas = DriveApp.getFoldersByName(PASTA_SOLICITACOES);
+      const pasta = pastas.hasNext() ? pastas.next() : DriveApp.createFolder(PASTA_SOLICITACOES);
+      const arq = pasta.createFile(Utilities.newBlob(Utilities.base64Decode(req.imagem), req.mime, id + (req.mime === 'image/png' ? '.png' : '.jpg')));
+      arq.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      foto = 'https://lh3.googleusercontent.com/d/' + arq.getId();
+    }
+    sh.appendRow([id, new Date(), 'Nova', nome, "'" + telefone, tamanho, descricao, foto]);
+    cache.put(chaveTel, String(doTel + 1), 6 * 3600);
+    cache.put(hora, String(naHora + 1), 3600);
+    return { ok: true, id: id };
+  });
+}
+
+function listarSolicitacoes(req) {
+  conferirSenha(req);
+  const v = abaSolicitacoes().getDataRange().getValues();
+  const cab = v[0];
+  const lista = v.slice(1).map(function (row) {
+    const o = {};
+    cab.forEach(function (c, i) { o[c] = row[i]; });
+    o.telefone = String(o.telefone);
+    return o;
+  }).reverse();
+  return { ok: true, solicitacoes: lista };
+}
+
+function mudarStatusSolicitacao(req) {
+  conferirSenha(req);
+  if (STATUS_SOLICITACAO.indexOf(req.status) < 0) throw new Error('Status inválido.');
+  return comTrava(function () {
+    const sh = abaSolicitacoes();
+    const v = sh.getDataRange().getValues();
+    for (let i = 1; i < v.length; i++) {
+      if (String(v[i][0]) !== String(req.id)) continue;
+      sh.getRange(i + 1, 3).setValue(req.status);
+      return { ok: true };
+    }
+    throw new Error('Solicitação não encontrada.');
+  });
+}
+
+// Política de privacidade: solicitação que não virou pedido é apagada (com a imagem) em até 6 meses.
+// Roda junto do gatilho de hora em hora.
+const SOLICITACAO_DIAS = 180;
+function limparSolicitacoesAntigas() {
+  const ss = SpreadsheetApp.getActive();
+  const sh = ss.getSheetByName(ABA_SOLICITACOES);
+  if (!sh) return 0;
+  const v = sh.getDataRange().getValues();
+  const limite = Date.now() - SOLICITACAO_DIAS * 24 * 3600 * 1000;
+  let n = 0;
+  for (let i = v.length - 1; i >= 1; i--) {   // de baixo para cima, para apagar linhas sem bagunçar os índices
+    if (v[i][2] === 'Virou pedido' || !(new Date(v[i][1]).getTime() < limite)) continue;
+    const m = String(v[i][7] || '').match(/\/d\/([\w-]+)$/);
+    if (m) { try { DriveApp.getFileById(m[1]).setTrashed(true); } catch (e) { } }
+    sh.deleteRow(i + 1);
+    n++;
+  }
+  return n;
 }

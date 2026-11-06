@@ -67,6 +67,14 @@
     ];
   }
 
+  function solicitacoesExemplo() {
+    const h = horas => new Date(Date.now() - horas * 3600 * 1000).toISOString();
+    return [
+      { id: 'S1', data: h(26), status: 'Respondida', cliente: 'Bruno (exemplo)', telefone: '(51) 99999-0002', tamanho: 'G', descricao: 'Nacional do Uruguai, a branca', foto: 'fotos/nacional.jpg' },
+      { id: 'S2', data: h(2), status: 'Nova', cliente: 'Carla (exemplo)', telefone: '(54) 99999-0003', tamanho: 'M', descricao: 'Inter de Milão retrô 2004, a listrada azul', foto: 'fotos/inter-milao.jpg' }
+    ];
+  }
+
   function ler() {
     try {
       const e = JSON.parse(localStorage.getItem(ESTADO_KEY));
@@ -272,6 +280,39 @@
         demo: true,
         observacao: 'Demonstração: na loja real, a IA analisa a sua foto e preenche os dados dela. Aqui o resultado é sempre este exemplo.'
       };
+    },
+
+    // "Peça a sua": na loja real a imagem vai para o Google Drive; aqui fica no navegador
+    solicitar(req) {
+      if (!req.nome) throw new Error('Informe seu nome.');
+      if (String(req.telefone || '').replace(/\D/g, '').length < 10) throw new Error('Informe seu WhatsApp com DDD.');
+      if (!req.imagem && String(req.descricao || '').trim().length < 3) throw new Error('Mande a imagem ou escreva qual camisa você quer.');
+      const e = ler();
+      e.solicitacoes = e.solicitacoes || solicitacoesExemplo();
+      const id = 'S' + (e.solicitacoes.length + 1);
+      e.solicitacoes.push({
+        id, data: new Date().toISOString(), status: 'Nova', cliente: req.nome, telefone: req.telefone,
+        tamanho: req.tamanho || '', descricao: req.descricao || '', foto: req.imagem ? `data:${req.mime};base64,${req.imagem}` : ''
+      });
+      salvar(e);
+      return { ok: true, id };
+    },
+
+    solicitacoes(req) {
+      if (req.senha !== SENHA_DEMO) throw new Error('Senha incorreta.');
+      const e = ler();
+      return { ok: true, solicitacoes: (e.solicitacoes || solicitacoesExemplo()).slice().reverse() };
+    },
+
+    statusSolicitacao(req) {
+      if (req.senha !== SENHA_DEMO) throw new Error('Senha incorreta.');
+      const e = ler();
+      e.solicitacoes = e.solicitacoes || solicitacoesExemplo();
+      const s = e.solicitacoes.find(x => x.id === req.id);
+      if (!s) throw new Error('Solicitação não encontrada.');
+      s.status = req.status;
+      salvar(e);
+      return { ok: true };
     },
 
     cadastrar(req) {

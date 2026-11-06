@@ -40,7 +40,8 @@
   // ---------------- catálogo ----------------
   function montarFiltros() {
     // a aba "Sob encomenda" só aparece quando a planilha tem alguma camisa marcada como encomenda
-    const temEncomenda = db().produtos.some(p => p.ativo && p.encomenda);
+    // (ou sempre, quando dá para receber o "Peça a sua")
+    const temEncomenda = db().produtos.some(p => p.ativo && p.encomenda) || !!(DR.config.api || DR.config.demo);
     if (!temEncomenda) filtro.modo = 'pronta';
     $('#abasLoja').hidden = !temEncomenda;
     $('#abasLoja').querySelectorAll('[data-modo]').forEach(b => {
@@ -99,7 +100,15 @@
         </div>
       </button>`;
     }).join('');
-    $('#vazio').hidden = lista.length > 0;
+    // na aba de encomenda, o último card é o "Peça a sua"
+    if (filtro.modo === 'encomenda') {
+      $('#grade').insertAdjacentHTML('beforeend', `<button class="card card-pedir" data-pedir>
+        <span class="pedir-icone" aria-hidden="true">+</span>
+        <b>Não achou a sua?</b>
+        <span>Mande a imagem da camisa e a gente procura pra você.</span>
+      </button>`);
+    }
+    $('#vazio').hidden = lista.length > 0 || filtro.modo === 'encomenda';
   }
 
   // ---------------- detalhe do produto ----------------
@@ -620,6 +629,7 @@
   $('#ordenar').onchange = e => { filtro.ordem = e.target.value; renderGrade(); };
   $('#busca').oninput = e => { filtro.busca = e.target.value; renderGrade(); };
   $('#grade').onclick = e => { const c = e.target.closest('[data-id]'); if (c) abrirProduto(c.dataset.id); };
+  document.addEventListener('click', e => { if (e.target.closest('[data-pedir]') && window.DRPedir) DRPedir.abrir(); });
 
   $('#modalProduto').onclick = e => { if (e.target.id === 'modalProduto' || e.target.closest('[data-fechar]')) fecharProduto(); };
   $('#abrirCarrinho').onclick = abrirCarrinho;
@@ -628,7 +638,7 @@
   $('#pedidosFundo').onclick = fecharPedidos;
   $('#fecharCarrinho').onclick = fecharCarrinho;
   $('#carrinhoFundo').onclick = fecharCarrinho;
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { fecharProduto(); fecharCarrinho(); fecharPedidos(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { fecharProduto(); fecharCarrinho(); fecharPedidos(); window.DRPedir?.fechar(); } });
 
   // carrinho aberto em outra aba do mesmo navegador
   window.addEventListener('storage', () => {

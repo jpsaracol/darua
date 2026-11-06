@@ -215,6 +215,27 @@ const DR = (() => {
     return j;
   }
 
+  // ---------- imagens enviadas pelo navegador ----------
+  // Reduz para no máximo `max` px em JPEG: a foto do celular cai de ~4 MB para ~150-250 KB,
+  // o envio fica rápido e cabe folgado no limite do Apps Script e da IA
+  function reduzirImagem(arquivo, max = 1280) {
+    return new Promise((ok, falha) => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * k);
+        cv.height = Math.round(img.height * k);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(img.src);
+        const url = cv.toDataURL('image/jpeg', 0.85);
+        ok({ url, base64: url.split(',')[1], mime: 'image/jpeg' });
+      };
+      img.onerror = () => falha(new Error('Não deu para abrir essa imagem.'));
+      img.src = URL.createObjectURL(arquivo);
+    });
+  }
+
   // ---------- Pix "copia e cola" (padrão BR Code do Banco Central) ----------
   function crc16(s) {
     let crc = 0xFFFF;
@@ -238,7 +259,7 @@ const DR = (() => {
   }
 
   return {
-    TAMANHOS, CATEGORIAS, config, api, pixPayload, meusPedidos, guardarPedido,
+    TAMANHOS, CATEGORIAS, config, api, reduzirImagem, pixPayload, meusPedidos, guardarPedido,
     brl, esc, normalizar, emPromo, precoFinal, totalEstoque, estoqueDe, temEstoque, prazoEncomenda, camisaSVG, imagemDe,
     paraProdutos, carregarCatalogo, catalogoEmCache, loadCart, saveCart, buscarCEP, opcoesFrete
   };
